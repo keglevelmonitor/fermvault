@@ -1,20 +1,18 @@
-💻 Installation
-To install FermVault on your Raspberry Pi, open a terminal and run these three commands, one after another.
+💻 INSTALLATION
 
-Clone the repository:
+To install FermVault on your Raspberry Pi, follow these instructions to run the three commands. 
+NOTES ARE IN ALL CAPS! DO NOT TYPE NOTES!
 
-Bash
+OPEN TERMINAL AND AT THE DEFAULT PROMPT ENTER THESE COMMANDS:
 
+TO CLONE THE REPOSITORY:
 git clone https://github.com/your-username/fermvault.git
-Move into the new directory:
 
-Bash
+TO NAVIGATE TO THE PROJECT FOLDER:
+cd ~/fermvault
 
-cd fermvault
-Run the installer:
-
-Bash
-
+TO INSTALL THE APP ON YOUR PI:
 ./install.sh
 
-That's it! You will now find "FermVault" in your main application menu. You can use the "Update" button inside the app for all future updates.
+That's it! You will now find "Fermentation Vault" in your application menu under, "Other". 
+You can use the "Check for Updates" action inside the app for all future updates.
