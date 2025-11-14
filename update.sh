@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 # update.sh
 # Handles post-pull dependency updates for FermVault.
 

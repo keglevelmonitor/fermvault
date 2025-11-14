@@ -8,7 +8,7 @@ OPEN TERMINAL AND AT THE DEFAULT PROMPT ENTER THESE COMMANDS:
 
 TO CLONE THE REPOSITORY:
 
-git clone https://github.com/your-username/fermvault.git
+git clone https://github.com/keglevelmonitor/fermvault.git
 
 TO NAVIGATE TO THE PROJECT FOLDER:
 
