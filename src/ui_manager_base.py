@@ -1320,7 +1320,26 @@ class MainUIBase:
                     if "Already up to date" in pull_result.stdout:
                          self.log_system_message("Update finished, but no files were actually changed (git status was slightly delayed).")
                     else:
-                         self.log_system_message("Update SUCCESSFUL. Please restart the application to apply changes.")
+                         # --- MODIFICATION: Get latest commit message ---
+                         try:
+                            # 4. Get the latest commit message
+                            commit_msg_result = subprocess.run(
+                                ['git', 'log', '-1', '--pretty=%s'], # %s = subject
+                                cwd=project_dir,
+                                check=True,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                text=True
+                            )
+                            commit_message = commit_msg_result.stdout.strip()
+                            # Log with the commit message
+                            self.log_system_message(f"Update SUCCESSFUL. Latest change: '{commit_message}'. Please restart the application.")
+                         
+                         except Exception as e:
+                            # Fallback if 'git log' fails for some reason
+                            print(f"Error getting commit message: {e}")
+                            self.log_system_message("Update SUCCESSFUL. Please restart the application to apply changes.")
+                         # --- END MODIFICATION ---
                          
                 elif "Your branch is ahead" in status_output.lower():
                     self.log_system_message("Local code has been modified. Cannot update; please run 'git reset --hard' manually.")
