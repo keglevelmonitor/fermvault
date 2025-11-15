@@ -24,6 +24,8 @@ You can use the "Check for Updates" action inside the app to check for and insta
 
 REFERENCE file structure:
 
+FERENCE file structure:
+"""
 fermvault/
 ├── .gitignore
 ├── LICENSE
@@ -57,4 +59,6 @@ fermvault-data/
     ├── fermentation_data.json
     ├── fermvault_settings.json
     └── pid_tuning_log.csv
+"""
+
 
