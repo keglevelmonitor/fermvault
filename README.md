@@ -23,8 +23,6 @@ That's it! You will now find "Fermentation Vault" in your application menu under
 You can use the "Check for Updates" action inside the app to check for and install future updates.
 
 REFERENCE file structure:
-
-FERENCE file structure:
 ```
 fermvault/
 ├── .gitignore
