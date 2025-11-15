@@ -34,8 +34,11 @@ class MainUIBase:
         self.control_mode_options = ["Ambient", "Beer", "Ramp", "Crash"]
         # --- END MODIFICATION ---
         
-        # --- MODIFICATION: Added "Reset to Defaults" ---
-        self.action_options = ["Send Status Message", "Update API & Temp Data", "Reload Brew Sessions", "Run FG Calculator", "Reset to Defaults"]
+        # --- MODIFICATION: Added "Reset to Defaults" AND "Check for Updates" ---
+        self.action_options = [
+            "Send Status Message", "Update API & Temp Data", "Reload Brew Sessions", 
+            "Run FG Calculator", "Check for Updates", "Reset to Defaults"
+        ]
         # --- END MODIFICATION ---
         
         # --- MODIFICATION: Added 'PID & Tuning' ---
