@@ -1,11 +1,16 @@
-#!/bin/bash 
+#!/bin.bash
 # update.sh
 # Handles post-pull dependency updates for FermVault.
+# --- MODIFIED TO USE VIRTUAL ENVIRONMENT ---
 
 # --- 1. Define Variables ---
 # Get the full path to the directory this script is in (the project root)
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PYTHON_EXEC="python3"
+
+# --- ADDED: Define paths for the virtual environment ---
+VENV_DIR="$PROJECT_DIR/venv"
+VENV_PYTHON_EXEC="$VENV_DIR/bin/python"
+# --- END ADDED ---
 
 echo "--- FermVault Update Script ---"
 echo "Starting dependency refresh in $PROJECT_DIR"
@@ -17,17 +22,29 @@ if [ ! -d "$PROJECT_DIR/.git" ]; then
     exit 1
 fi
 
-# --- 3. Run Dependency Installation ---
-# This is crucial for catching new libraries added in the update.
-if command -v $PYTHON_EXEC &>/dev/null; then
-    echo "Checking for new Python dependencies..."
-    # Re-run pip install with --user to install new dependencies locally.
-    # pip is smart enough not to reinstall existing packages.
-    $PYTHON_EXEC -m pip install -r "$PROJECT_DIR/requirements.txt" --user
-else
-    echo "[ERROR] Python 3 not found. Cannot update dependencies."
+# --- 3. Run Dependency Installation (MODIFIED) ---
+echo "Checking for new Python dependencies..."
+
+# --- ADDED: Check if venv exists first ---
+if [ ! -f "$VENV_PYTHON_EXEC" ]; then
+    echo "[ERROR] Virtual environment not found at $VENV_PYTHON_EXEC"
+    echo "This script only updates an existing installation."
+    echo "Please run the ./install.sh script first."
     exit 1
 fi
+# --- END ADDED ---
+
+# --- MODIFIED: Install packages using the venv's pip ---
+# We call the python executable from the venv directly.
+# The --user flag is removed.
+"$VENV_PYTHON_EXEC" -m pip install -r "$PROJECT_DIR/requirements.txt"
+
+# Check if pip installation succeeded
+if [ $? -ne 0 ]; then
+    echo "[FATAL ERROR] Dependency update failed. Check internet connection or requirements.txt."
+    exit 1
+fi
+
 
 echo "--- Dependency Update Complete ---"
 echo "If you ran this script manually, please restart the FermVault application."
