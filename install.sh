@@ -5,7 +5,13 @@
 # --- 1. Define Variables ---
 # Get the full path to the directory this script is in (the project root)
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PYTHON_EXEC="python3" 
+PYTHON_EXEC="python3"
+
+# --- ADDED: Define paths for the virtual environment ---
+VENV_DIR="$PROJECT_DIR/venv"
+VENV_PYTHON_EXEC="$VENV_DIR/bin/python" 
+# --- END ADDED ---
+
 DESKTOP_FILE_TEMPLATE="$PROJECT_DIR/fermvault.desktop"
 INSTALL_LOCATION="$HOME/.local/share/applications/fermvault.desktop"
 DATA_DIR="$HOME/fermvault-data"
@@ -13,13 +19,28 @@ DATA_DIR="$HOME/fermvault-data"
 echo "--- FermVault Installation Script ---"
 echo "Project path detected: $PROJECT_DIR"
 
-# --- 2. Install Python Dependencies ---
-# Check for python3 and requirements.txt
+# --- 2. Install Python Dependencies (MODIFIED) ---
+# Check for python3
 if command -v $PYTHON_EXEC &>/dev/null; then
-    echo "Installing Python dependencies (local user install)..."
-    # Use the --user flag to install packages locally, avoiding the need for sudo
-    # pip is smart enough to handle missing packages or new additions.
-    $PYTHON_EXEC -m pip install -r "$PROJECT_DIR/requirements.txt" --user
+    
+    # --- ADDED: Create the virtual environment ---
+    echo "Creating Python virtual environment at $VENV_DIR..."
+    $PYTHON_EXEC -m venv "$VENV_DIR"
+    
+    if [ $? -ne 0 ]; then
+        echo "[FATAL ERROR] Failed to create virtual environment."
+        echo "You may need to install the 'python3-venv' package."
+        echo "Try running: sudo apt install python3-venv"
+        exit 1
+    fi
+    # --- END ADDED ---
+
+    echo "Installing Python dependencies into virtual environment..."
+    
+    # --- MODIFIED: Install packages using the venv's pip ---
+    # We call the python executable from the venv directly.
+    # The --user flag is no longer needed.
+    "$VENV_PYTHON_EXEC" -m pip install -r "$PROJECT_DIR/requirements.txt"
     
     # Check if pip installation succeeded
     if [ $? -ne 0 ]; then
@@ -56,9 +77,12 @@ if [ -f "$DESKTOP_FILE_TEMPLATE" ]; then
     # 1. Copy the template to a temporary file
     cp "$DESKTOP_FILE_TEMPLATE" /tmp/fermvault_temp.desktop
     
-    # 2. Update the Exec path (Ensures it uses the full, absolute path)
-    sed -i "s|Exec=PLACEHOLDER_EXEC_PATH|Exec=/usr/bin/$PYTHON_EXEC $EXEC_PATH|g" /tmp/fermvault_temp.desktop
+    # 2. --- MODIFIED: Update the Exec path to use the venv's python ---
+    sed -i "s|Exec=PLACEHOLDER_EXEC_PATH|Exec=$VENV_PYTHON_EXEC $EXEC_PATH|g" /tmp/fermvault_temp.desktop
     
+    # 2.5 --- ADDED: Update the Path (working directory) ---
+    sed -i "s|Path=PLACEHOLDER_PATH|Path=$PROJECT_DIR/src|g" /tmp/fermvault_temp.desktop
+
     # 3. Update the Icon path
     sed -i "s|Icon=PLACEHOLDER_ICON_PATH|Icon=$ICON_PATH|g" /tmp/fermvault_temp.desktop
     
