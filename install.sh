@@ -1,6 +1,7 @@
 #!/bin/bash
 # install.sh
 # Installation script for FermVault application.
+# Corrected for chmod +x executable.
 
 # --- 1. Define Variables ---
 # Get the full path to the directory this script is in (the project root)
