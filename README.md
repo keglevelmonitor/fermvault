@@ -24,7 +24,7 @@ You can use the "Check for Updates" action inside the app to check for and insta
 
 REFERENCE file structure:
 ```
-fermvault/
+~/fermvault/
 ├── .gitignore
 ├── LICENSE
 ├── README.md
@@ -49,6 +49,7 @@ fermvault/
 │   │
 │   └── assets/
 │        ├── help.txt
+│        ├── changelog.txt
 │        ├── wiring.gif
 │        ├── support.gif
 │        └── fermenter.png

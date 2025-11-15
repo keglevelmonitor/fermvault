@@ -1417,8 +1417,53 @@ class PopupManager:
         help_text = self._get_help_section("main")
         self._create_formatted_help_popup("Fermentation Vault - Help", help_text)       
     
-    def _open_about_popup(self): self.ui.log_system_message("About not yet implemented.")
-    
+    def _get_git_commit_hash(self):
+        """Gets the short commit hash using git."""
+        try:
+            # Assumes 'popup_manager.py' is in 'src/' and '.git' is in the parent folder
+            src_dir = os.path.dirname(os.path.abspath(__file__))
+            project_dir = os.path.dirname(src_dir)
+            
+            # We need to import subprocess here
+            import subprocess
+            
+            result = subprocess.run(
+                ['git', 'rev-parse', '--short', 'HEAD'],
+                cwd=project_dir,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            # Return the short 7-character hash
+            return result.stdout.strip()
+            
+        except FileNotFoundError:
+            print("Error getting Git commit hash: 'git' command not found.")
+            return "N/A (Git not found)"
+        except subprocess.CalledProcessError:
+            print("Error getting Git commit hash: Not a git repository?")
+            return "N/A (Not a repo)"
+        except Exception as e:
+            print(f"Error getting Git commit hash: {e}")
+            return "N/A (Error)"
+
+    def _open_about_popup(self):
+        # 1. Get the app name (set in main.py)
+        app_name = self.ui.app_version_string
+        
+        # 2. Get the Git commit hash
+        app_revision = self._get_git_commit_hash()
+        
+        # 3. Display the popup
+        messagebox.showinfo(
+            "About Fermentation Vault",
+            f"{app_name}\n"
+            f"Revision: {app_revision}\n"
+            "\n"
+            "This application is provided as-is without warranty.\n"
+            "Always monitor your fermentation equipment."
+        )    
     
     def _get_help_section(self, section_name):
         """

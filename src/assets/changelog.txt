@@ -1,0 +1,6 @@
+Upcoming enhancements:
+- Add revision tracking feature
+
+Change Log:
+2025-11-16
+- added About... menu with project explanation, change log, and link to Support this App
