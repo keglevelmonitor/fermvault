@@ -1,6 +1,7 @@
 """
 Fermentation Vault App
 ui_manager_base.py
+
 """
 import tkinter as tk
 from tkinter import ttk, messagebox
