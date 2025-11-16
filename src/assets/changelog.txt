@@ -4,6 +4,7 @@ Upcoming enhancements:
 
 Change Log:
 2025-11-16
+- added intermediate dialog on action, "Check for updates"
 - corrected to clear stale API data when service is set to OFF
 - corrected FG message area to be blank (instead of Pending) when API off or API error
 - added About... menu with project explanation, change log, and link to Support this App

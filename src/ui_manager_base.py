@@ -748,7 +748,7 @@ class MainUIBase:
         
         # --- NEW HANDLER ---
         elif choice == "Check for Updates":
-             self._run_check_for_updates() # Call the new update function
+             self._start_update_check_task() # Call the new "check" function
         # --- END NEW HANDLER ---
                 
         elif choice == "Reset to Defaults":
@@ -1297,91 +1297,132 @@ class MainUIBase:
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred during reset: {e}")
                 
-    def _run_check_for_updates(self):
+    def _start_update_check_task(self):
         """
-        Runs git pull in the background thread to check for and apply updates.
+        [NEW] Part 1: Starts the first background thread to check for updates.
         """
-        def update_task():
+        self.log_system_message("Checking for updates via Git...")
+        # Start the "check" thread
+        threading.Thread(target=self._check_for_updates_task, daemon=True).start()
+
+    def _check_for_updates_task(self):
+        """
+        [NEW] Part 2: Background thread that runs 'git fetch' and 'git status'.
+        This thread does NOT show popups. It calls _show_update_dialog on the main thread.
+        """
+        import subprocess
+        
+        try:
             # Get the path to the directory containing the project (where .git is)
-            # This relies on main.py knowing it's in src/ and the repo being its parent
             project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             
-            self.log_system_message("Checking for updates via Git...")
+            # 1. Fetch the latest info from the remote
+            subprocess.run(
+                ['git', 'fetch'], 
+                cwd=project_dir, 
+                check=True, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE,
+                text=True
+            )
             
-            try:
-                # 1. Ensure the remote connection is active and fetch status
-                result = subprocess.run(
-                    ['git', 'fetch'], 
-                    cwd=project_dir, 
-                    check=True, 
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-                
-                # 2. Check for differences (local branch vs remote tracking branch)
-                result = subprocess.run(
-                    ['git', 'status', '-uno'], 
-                    cwd=project_dir, 
-                    check=True, 
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-                
-                status_output = result.stdout
-                
-                if "up to date" in status_output.lower():
-                    self.log_system_message("Application is already up to date. No new updates found.")
-                elif "can be fast-forwarded" in status_output.lower() or "behind" in status_output.lower():
-                    self.log_system_message("New update found! Running git pull...")
-                    
-                    # 3. Perform the actual pull
-                    pull_result = subprocess.run(
-                        ['git', 'pull'], 
-                        cwd=project_dir, 
-                        check=True, 
-                        stdout=subprocess.PIPE, 
-                        stderr=subprocess.PIPE,
-                        text=True
-                    )
-                    
-                    if "Already up to date" in pull_result.stdout:
-                         self.log_system_message("Update finished, but no files were actually changed (git status was slightly delayed).")
-                    else:
-                         # --- MODIFICATION: Get latest commit message ---
-                         try:
-                            # 4. Get the latest commit message
-                            commit_msg_result = subprocess.run(
-                                ['git', 'log', '-1', '--pretty=%s'], # %s = subject
-                                cwd=project_dir,
-                                check=True,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                text=True
-                            )
-                            commit_message = commit_msg_result.stdout.strip()
-                            # Log with the commit message
-                            self.log_system_message(f"Update SUCCESSFUL. Latest change: '{commit_message}'. Please restart the application.")
-                         
-                         except Exception as e:
-                            # Fallback if 'git log' fails for some reason
-                            print(f"Error getting commit message: {e}")
-                            self.log_system_message("Update SUCCESSFUL. Please restart the application to apply changes.")
-                         # --- END MODIFICATION ---
-                         
-                elif "Your branch is ahead" in status_output.lower():
-                    self.log_system_message("Local code has been modified. Cannot update; please run 'git reset --hard' manually.")
-                else:
-                    self.log_system_message(f"Update failed or status unclear. Output: {status_output.splitlines()[0]}")
+            # 2. Check for differences (local branch vs remote tracking branch)
+            result = subprocess.run(
+                ['git', 'status', '-uno'], 
+                cwd=project_dir, 
+                check=True, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            status_output = result.stdout.lower()
+            
+            # 3. Determine the status
+            status = "error"
+            if "up to date" in status_output:
+                status = "up to date"
+            elif "can be fast-forwarded" in status_output or "behind" in status_output:
+                status = "behind"
+            elif "your branch is ahead" in status_output:
+                status = "ahead"
 
-            except subprocess.CalledProcessError as e:
-                self.log_system_message(f"ERROR: Git command failed. Output: {e.stderr.strip()}")
-            except FileNotFoundError:
-                self.log_system_message("ERROR: Git executable not found. Ensure Git is installed.")
-            except Exception as e:
-                self.log_system_message(f"Unexpected error during update: {e}")
+            # 4. Call the UI function on the main thread to show the result
+            self.root.after(0, lambda: self._show_update_dialog(status))
 
-        # Execute the task in a new thread
-        import subprocess # Local import to reduce overhead
-        threading.Thread(target=update_task, daemon=True).start()
+        except subprocess.CalledProcessError as e:
+            self.log_system_message(f"ERROR: Git command failed. Output: {e.stderr.strip()}")
+            self.root.after(0, lambda: self._show_update_dialog("error"))
+        except FileNotFoundError:
+            self.log_system_message("ERROR: Git executable not found. Ensure Git is installed.")
+            self.root.after(0, lambda: self._show_update_dialog("error"))
+        except Exception as e:
+            self.log_system_message(f"Unexpected error during update check: {e}")
+            self.root.after(0, lambda: self._show_update_dialog("error"))
+            
+    def _show_update_dialog(self, status):
+        """
+        [NEW] Part 3: Runs on the main UI thread to show popups based on the check status.
+        If the user confirms, it launches the *second* background thread to perform the pull.
+        """
+        import subprocess # This is needed for the nested _perform_update_task
+        
+        if status == "up to date":
+            self.log_system_message("Application is already up to date.")
+            messagebox.showinfo("No Updates", "Your application is already up to date.")
+        
+        elif status == "behind":
+            # Updates are available, ask the user
+            if messagebox.askyesno("Updates Available", "New updates are available. Do you want to install them now?\n\nThe app must be restarted after updating."):
+                # User clicked "Yes", start the actual update thread
+                self.log_system_message("Update confirmed. Downloading files...")
+                
+                # --- Part 3b: The "Pull" Thread ---
+                def _perform_update_task():
+                    try:
+                        project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                        
+                        # 1. Perform the actual pull
+                        subprocess.run(
+                            ['git', 'pull'], 
+                            cwd=project_dir, 
+                            check=True, 
+                            stdout=subprocess.PIPE, 
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        
+                        # 2. Get the latest commit message
+                        commit_msg_result = subprocess.run(
+                            ['git', 'log', '-1', '--pretty=%s'], # %s = subject
+                            cwd=project_dir,
+                            check=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        commit_message = commit_msg_result.stdout.strip()
+                        
+                        # 3. Log success and show final popup
+                        log_msg = f"Update SUCCESSFUL. Latest change: '{commit_message}'"
+                        self.log_system_message(log_msg)
+                        self.root.after(0, lambda: messagebox.showinfo("Update Complete", f"{log_msg}\n\nPlease restart the application."))
+                    
+                    except Exception as e:
+                        log_msg = f"Update FAILED during pull: {e}"
+                        self.log_system_message(log_msg)
+                        self.root.after(0, lambda: messagebox.showerror("Update Failed", log_msg))
+                
+                # Start the pull thread
+                threading.Thread(target=_perform_update_task, daemon=True).start()
+
+        elif status == "ahead":
+            log_msg = "Local code has been modified. Cannot update automatically. Please run 'git reset --hard' manually."
+            self.log_system_message(log_msg)
+            messagebox.showwarning("Update Error", log_msg)
+        
+        elif status == "error":
+            log_msg = "An error occurred while checking for updates. Please check the system messages for details."
+            # The specific error was already logged by _check_for_updates_task
+            messagebox.showerror("Update Check Failed", log_msg)
+                
