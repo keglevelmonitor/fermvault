@@ -616,13 +616,24 @@ class MainUIBase:
         
         # --- THIS IS THE FIX ---
         if selected_api == "OFF":
-            # If the API is turned OFF, clear all API-related data from the UI
+            # If the API is turned OFF, clear all API-related data from 
+            # BOTH the UI (StringVar) AND the SettingsManager (persistent)
+            
+            # 1. Clear UI Variables
             self.og_display_var.set("-.---")
             self.og_timestamp_var.set("--:--:--")
             self.sg_display_var.set("-.---")
             self.sg_timestamp_var.set("--:--:--")
             self.fg_status_var.set("-.---") # The value
             self.fg_message_var.set("")      # The message
+            
+            # 2. Clear SettingsManager Variables
+            self.settings_manager.set("og_display_var", "-.---")
+            self.settings_manager.set("og_timestamp_var", "--:--:--")
+            self.settings_manager.set("sg_display_var", "-.---")
+            self.settings_manager.set("sg_timestamp_var", "--:--:--")
+            self.settings_manager.set("fg_value_var", "-.---")
+            self.settings_manager.set("fg_status_var", "")
             
             # Still repopulate the dropdown, which will now show the local sessions
             self._populate_brew_session_dropdown()
