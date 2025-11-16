@@ -1957,7 +1957,7 @@ class PopupManager:
 
         support_text = (
             "This App took hundreds of hours to develop, test, and optimize. "
-            "Please consider donating to this App so improvements and enhancements "
+            "Please consider supporting this App with a donation so continuous improvements "
             "can be made. If you wish to receive customer support via email, please "
             "make a reasonable donation in support of this App. Customer support "
             "requests without a donation may not be considered for response."
@@ -1981,18 +1981,8 @@ class PopupManager:
         eula_text_widget = scrolledtext.ScrolledText(eula_frame, height=10, wrap="word", relief="flat")
         eula_text_widget.pack(fill="both", expand=True)
         
-        eula_content = """**End User License Agreement (EULA)**
-
-**1. Scope of Agreement**
-This Agreement applies to the "Fermentation Vault" software (hereafter "this app"). "This app" includes the main software program and all related software and hardware components, including commercially supplied, home-made, or independently supplied hardware and software components of any kind.
-
-**2. Acceptance of Responsibility**
-By using this app, you, the user, accept all responsibility for any consequence or outcome arising from the use of, or inability to use, this app.
-
-**3. No Guarantee or Warranty**
-This app is provided "as is." It provides no guarantee of usefulness or fitness for any particular purpose. The app provides no warranty, expressed or implied. You use this app entirely at your own risk.
-"""
-        # Add tags for basic formatting
+        # --- THIS IS THE FIX ---
+        # 1. Define tags
         try:
             default_font = tkfont.nametofont("TkDefaultFont")
             bold_font = default_font.copy()
@@ -2000,14 +1990,35 @@ This app is provided "as is." It provides no guarantee of usefulness or fitness 
             eula_text_widget.tag_configure("bold", font=bold_font)
         except:
             eula_text_widget.tag_configure("bold", font=('TkDefaultFont', 10, 'bold'))
-
-        eula_text_widget.insert("1.0", eula_content)
-        eula_text_widget.tag_add("bold", "1.0", "1.30")
-        eula_text_widget.tag_add("bold", "3.0", "3.20")
-        eula_text_widget.tag_add("bold", "7.0", "7.30")
-        eula_text_widget.tag_add("bold", "11.0", "11.27")
         
-        eula_text_widget.config(state="disabled")
+        # 2. Insert content line by line, applying tags as we go
+        eula_text_widget.config(state="normal") # Enable editing to insert text
+        
+        eula_text_widget.insert("end", "End User License Agreement (EULA)\n\n", "bold")
+        
+        eula_text_widget.insert("end", "1. Scope of Agreement\n", "bold")
+        eula_text_widget.insert("end", (
+            "This Agreement applies to the \"Fermentation Vault\" software (hereafter \"this app\"). "
+            "\"This app\" includes the main software program and all related software and hardware components, "
+            "including commercially supplied, home-made, or independently supplied hardware "
+            "and software components of any kind.\n\n"
+        ))
+        
+        eula_text_widget.insert("end", "2. Acceptance of Responsibility\n", "bold")
+        eula_text_widget.insert("end", (
+            "By using this app, you, the user, accept all responsibility for any consequence or "
+            "outcome arising from the use of, or inability to use, this app.\n\n"
+        ))
+        
+        eula_text_widget.insert("end", "3. No Guarantee or Warranty\n", "bold")
+        eula_text_widget.insert("end", (
+            "This app is provided \"as is.\" It provides no guarantee of usefulness or fitness "
+            "for any particular purpose. The app provides no warranty, expressed or implied. "
+            "You use this app entirely at your own risk.\n"
+        ))
+        
+        eula_text_widget.config(state="disabled") # Make read-only
+        # --- END OF FIX ---
 
         # --- Agreement Section ---
         agreement_frame = ttk.Frame(main_frame)
