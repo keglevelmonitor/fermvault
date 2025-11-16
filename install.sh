@@ -13,6 +13,14 @@ VENV_DIR="$PROJECT_DIR/venv"
 VENV_PYTHON_EXEC="$VENV_DIR/bin/python" 
 # --- END ADDED ---
 
+# --- MODIFIED: Get the full path to the system python executable ---
+FULL_PYTHON_PATH=$(command -v $PYTHON_EXEC)
+if [ -z "$FULL_PYTHON_PATH" ]; then
+    echo "[FATAL ERROR] Python 3 ($PYTHON_EXEC) not found in PATH."
+    exit 1
+fi
+# --- END MODIFIED ---
+
 DESKTOP_FILE_TEMPLATE="$PROJECT_DIR/fermvault.desktop"
 INSTALL_LOCATION="$HOME/.local/share/applications/fermvault.desktop"
 DATA_DIR="$HOME/fermvault-data"
@@ -78,8 +86,8 @@ if [ -f "$DESKTOP_FILE_TEMPLATE" ]; then
     # 1. Copy the template to a temporary file
     cp "$DESKTOP_FILE_TEMPLATE" /tmp/fermvault_temp.desktop
     
-    # 2. --- MODIFIED: Update the Exec path to use the venv's python ---
-    sed -i "s|Exec=PLACEHOLDER_EXEC_PATH|Exec=$VENV_PYTHON_EXEC $EXEC_PATH|g" /tmp/fermvault_temp.desktop
+    # 2. --- MODIFIED: Update the Exec path to use the SYSTEM python ---
+    sed -i "s|Exec=PLACEHOLDER_EXEC_PATH|Exec=$FULL_PYTHON_PATH $EXEC_PATH|g" /tmp/fermvault_temp.desktop
     
     # 2.5 --- ADDED: Update the Path (working directory) ---
     sed -i "s|Path=PLACEHOLDER_PATH|Path=$PROJECT_DIR/src|g" /tmp/fermvault_temp.desktop
