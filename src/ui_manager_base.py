@@ -613,7 +613,26 @@ class MainUIBase:
         selected_api = self.api_service_var.get()
         self.api_manager.set_active_service(selected_api)
         self.settings_manager.set("active_api_service", selected_api) # Ensure the setting is saved immediately
-        self._populate_brew_session_dropdown()
+        
+        # --- THIS IS THE FIX ---
+        if selected_api == "OFF":
+            # If the API is turned OFF, clear all API-related data from the UI
+            self.og_display_var.set("-.---")
+            self.og_timestamp_var.set("--:--:--")
+            self.sg_display_var.set("-.---")
+            self.sg_timestamp_var.set("--:--:--")
+            self.fg_status_var.set("-.---") # The value
+            self.fg_message_var.set("")      # The message
+            
+            # Still repopulate the dropdown, which will now show the local sessions
+            self._populate_brew_session_dropdown()
+            
+        else:
+            # If an API service is selected, populate the brew session dropdown.
+            # The dropdown's "on-complete" function will automatically trigger
+            # the first API call for the selected session.
+            self._populate_brew_session_dropdown()
+        # --- END FIX ---
 
     def _handle_control_mode_change(self, event):
         # --- MODIFICATION: Add mapping from Display Name to Internal Name ---
@@ -1058,7 +1077,7 @@ class MainUIBase:
         
         # --- MODIFICATION: FG Display Logic ---
         fg_value = self.settings_manager.get("fg_value_var", "-.---")
-        fg_status_message = self.settings_manager.get("fg_status_var", "Pending")
+        fg_status_message = self.settings_manager.get("fg_status_var", "")
         
         self.fg_status_var.set(format_for_display(fg_value, type_hint="sg"))
         self.fg_message_var.set(fg_status_message)

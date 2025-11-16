@@ -123,7 +123,7 @@ class SettingsManager:
             "sg_display_var": "-.---",
             
             # --- MODIFICATION: Renamed/Added FG variables ---
-            "fg_status_var": "Pending", # This is now the MESSAGE (e.g., "Pending (Error)", "Stable")
+            "fg_status_var": "", # This is now the MESSAGE (e.g., "", "Stable")
             "fg_value_var": "-.---",    # This is now the VALUE (e.g., "-.---", "1.010")
             # --- END MODIFICATION ---
             

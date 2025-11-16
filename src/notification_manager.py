@@ -476,7 +476,7 @@ class NotificationManager:
         if self.settings_manager.get("active_api_service") == "OFF":
             # --- MODIFICATION: Use new error message ---
             self.ui.log_system_message("FG calculation requires an active API service.")
-            self.settings_manager.set("fg_status_var", "Pending (API OFF)")
+            self.settings_manager.set("fg_status_var", "")
             # --- END MODIFICATION ---
             self.settings_manager.set("fg_value_var", "-.---")
             self.ui.root.after(0, self.ui._update_data_display)
@@ -499,7 +499,7 @@ class NotificationManager:
             out = params.get('max_outliers', 'N/A')
             
             value_msg = "-.---"
-            status_msg = "Pending"
+            status_msg = "" # --- FIX: Default to blank
             log_msg = ""
             has_error = False
 
@@ -514,20 +514,19 @@ class NotificationManager:
                 # --- END MODIFICATION ---
             else:
                 value_msg = "-.---"
-                # Check for errors
+                status_msg = "" # --- FIX: Set to blank on error/pending
+                
+                # Check for errors to log them
                 if results.get("error"): 
-                    status_msg = f"Pending ({results['error']})"
+                    log_msg = f"FG Calculation: Pending ({results['error']})"
                     has_error = True
                 elif results.get('results') and results['results'].get("error"): 
-                    status_msg = f"Pending ({results['results']['error']})"
+                    log_msg = f"FG Calculation: Pending ({results['results']['error']})"
                     has_error = True
                 
-                if has_error:
-                    # Error case: Just log the status message
-                    log_msg = f"FG Calculation: {status_msg}"
-                else:
+                if not has_error:
                     # No error, just pending: Log with params
-                    log_msg = f"FG Calculation: Pending. Status: {status_msg}. Params: (Tol: {tol}, Win: {win}, Out: {out})"
+                    log_msg = f"FG Calculation: Pending. Params: (Tol: {tol}, Win: {win}, Out: {out})"
             # --- END MODIFICATION ---
             
             self.settings_manager.set("fg_status_var", status_msg)
@@ -783,7 +782,7 @@ class NotificationManager:
         if self.settings_manager.get("active_api_service") == "OFF":
             print(f"{log_prefix} API service is OFF. Skipping scheduled FG calc.")
             # --- MODIFICATION: Use new error message ---
-            self.settings_manager.set("fg_status_var", "Pending (API OFF)")
+            self.settings_manager.set("fg_status_var", "")
             # --- END MODIFICATION ---
             self.settings_manager.set("fg_value_var", "-.---")
             if self.ui: self.ui.root.after(0, self.ui._update_data_display)
@@ -800,7 +799,7 @@ class NotificationManager:
         out = params.get('max_outliers', 'N/A')
         
         value_msg = "-.---"
-        status_msg = "Pending"
+        status_msg = "" # --- FIX: Default to blank
         log_msg = ""
         has_error = False
 
@@ -815,20 +814,19 @@ class NotificationManager:
             # --- END MODIFICATION ---
         else:
             value_msg = "-.---"
-            # Check for errors
+            status_msg = "" # --- FIX: Set to blank on error/pending
+            
+            # Check for errors to log them
             if results.get("error"): 
-                status_msg = f"Pending ({results['error']})"
+                log_msg = f"FG Calculation: Pending ({results['error']})"
                 has_error = True
             elif results.get('results') and results['results'].get("error"): 
-                status_msg = f"Pending ({results['results']['error']})"
+                log_msg = f"FG Calculation: Pending ({results['results']['error']})"
                 has_error = True
             
-            if has_error:
-                # Error case: Just log the status message
-                log_msg = f"FG Calculation: {status_msg}"
-            else:
-                # No error, just pending: Log with params
-                log_msg = f"FG Calculation: Pending. Status: {status_msg}. Params: (Tol: {tol}, Win: {win}, Out: {out})"
+            if not has_error:
+                # No error, just pending
+                log_msg = f"FG Calculation: Pending. Params: (Tol: {tol}, Win: {win}, Out: {out})"
         # --- END MODIFICATION ---
         
         self.settings_manager.set("fg_status_var", status_msg)
