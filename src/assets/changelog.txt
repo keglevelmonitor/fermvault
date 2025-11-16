@@ -4,6 +4,7 @@ Upcoming enhancements:
 
 Change Log:
 2025-11-16
+- added wiring diagram and Open button to open it in native RPi Image Viewer
 - intermediary challenge on PID & Tuning popup applies only if a setting/parameter is changed, not just logging
 - added intermediate dialog on action, "Check for updates"
 - corrected to clear stale API data when service is set to OFF
@@ -15,3 +16,5 @@ Change Log:
 - wrote README.md to explain new installation process
 
 
+2025 October
+- complete refactoring for improved UI including error handling etc.

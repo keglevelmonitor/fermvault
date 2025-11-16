@@ -12,6 +12,9 @@ import re
 import webbrowser
 import tkinter.font as tkfont
 import tkinter.scrolledtext as scrolledtext
+import subprocess
+import shutil
+import os
 
 # --- Constants for Conversion (Placeholder) ---
 MINUTES_TO_SECONDS = 60
@@ -1221,8 +1224,9 @@ class PopupManager:
             
         try:
             # --- MODIFICATION ---
+            # Get the directory where the currently executing script is located
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            # Path is now src/assets/wiring.gif
+            # Path is now relative to the script: <script_dir>/assets/wiring.gif
             image_path = os.path.join(base_dir, "assets", "wiring.gif")
             # --- END MODIFICATION ---
             
@@ -1246,53 +1250,111 @@ class PopupManager:
         popup.transient(self.root); popup.grab_set()
 
         # Load the image
-        self._load_wiring_diagram_image()
+        self._load_wiring_diagram_image() 
 
         # Main frame with 15px padding
         main_frame = ttk.Frame(popup, padding="15")
         main_frame.pack(fill="both", expand=True)
 
         # --- Image container frame ---
-        # Set this frame to 690x400 (which is 720 - 15 - 15 padding)
-        image_frame = ttk.Frame(main_frame, width=690, height=400, relief="sunken", borderwidth=1)
+        # SIZING: 720 - 30 (padding) = 690
+        # Height is 520 to fit in a 600px window with buttons
+        image_frame = ttk.Frame(main_frame, width=690, height=520, relief="sunken", borderwidth=1)
         image_frame.pack(fill="both", expand=True)
         
-        # This prevents the frame from shrinking to fit the label if the image is small
+        # This prevents the frame from shrinking to fit its contents
         image_frame.pack_propagate(False) 
 
         if self.wiring_diagram_image:
-            image_label = ttk.Label(image_frame, image=self.wiring_diagram_image)
-            # Center the label (and thus the image) inside the 690x400 frame
-            image_label.pack(expand=True) 
+            # --- START: Scrolling Logic ---
+            canvas = tk.Canvas(image_frame)
+            v_scroll = ttk.Scrollbar(image_frame, orient="vertical", command=canvas.yview)
+            h_scroll = ttk.Scrollbar(image_frame, orient="horizontal", command=canvas.xview)
+            canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
+
+            canvas.grid(row=0, column=0, sticky="nsew")
+            v_scroll.grid(row=0, column=1, sticky="ns")
+            h_scroll.grid(row=1, column=0, sticky="ew")
+            
+            image_frame.grid_rowconfigure(0, weight=1)
+            image_frame.grid_columnconfigure(0, weight=1)
+
+            image_label = ttk.Label(canvas, image=self.wiring_diagram_image)
+            canvas.create_window((0, 0), window=image_label, anchor="nw")
+
+            def on_configure(event):
+                canvas.config(scrollregion=canvas.bbox("all"))
+            
+            image_label.bind('<Configure>', on_configure)
+            # --- END: Scrolling Logic ---
+            
         else:
-            placeholder_text = "[ wiring.gif not found ]\n\nPlace wiring.gif in the same directory as the application."
+            # Placeholder text if image not found
+            placeholder_text = "[ wiring.gif not found ]\n\nPlace wiring.gif in the 'assets' folder."
             placeholder_label = ttk.Label(image_frame, text=placeholder_text, anchor="center", justify="center")
             placeholder_label.pack(expand=True)
 
-        # --- Button frame ---
+        # --- Button frame (with new button) ---
         btns_frame = ttk.Frame(main_frame, padding=(0, 10, 0, 0)) # Padding on top
         btns_frame.pack(fill="x", side="bottom")
+
+        # "Close" button
         ttk.Button(btns_frame, text="Close", command=popup.destroy).pack(side="right")
+
+        # "Open in Image Viewer" button
+        if self.wiring_diagram_image:
+            ttk.Button(btns_frame, text="Open in Image Viewer", 
+                       command=self._open_native_viewer).pack(side="left")
 
         # --- Finalize sizing and centering ---
         popup.update_idletasks()
         
-        popup_width = 720 # Force 720 width
-        popup_height = popup.winfo_height()
+        # SIZING: Force the final popup window to 720x600
+        popup_width = 720 
+        popup_height = 600
         
         # Hide the popup *after* getting its size
         popup.withdraw()
         
         # Center and reveal
         self._center_popup(popup, popup_width, popup_height)
-    
-    def _on_link_click(self, url):
-        """Callback to open a URL in the default web browser."""
+
+    def _open_native_viewer(self):
+        # --- PATH FIX: Use the *exact same logic* as _load_wiring_diagram_image ---
         try:
-            print(f"Opening link: {url}")
-            webbrowser.open_new(url)
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            image_path = os.path.join(base_dir, "assets", "wiring.gif")
         except Exception as e:
-            self.ui.log_system_message(f"Error: Could not open URL. {e}")
+            # Fallback to relative path
+            self.ui.log_system_message(f"Error getting base_dir, falling back: {e}")
+            image_path = os.path.join("assets", "wiring.gif")
+
+        # --- Error 1: File not found ---
+        if not os.path.exists(image_path):
+            self.ui.log_system_message(f"Error: Native viewer could not find {image_path}")
+            return
+
+        viewer_cmd = "xdg-open"
+
+        # --- Error 2: Viewer command not found ---
+        if not shutil.which(viewer_cmd):
+            # Fallback for minimal systems
+            for fallback_viewer in ["eog", "gpicview", "lximage-qt"]:
+                if shutil.which(fallback_viewer):
+                    viewer_cmd = fallback_viewer
+                    break
+            else:
+                # This is the "viewer not found" case
+                self.ui.log_system_message("Error: Could not find a suitable image viewer (xdg-open, eog, etc.).")
+                return
+        
+        # --- Error 3: Other OS-level error during launch ---
+        try:
+            # Open the viewer as a non-blocking, separate process
+            subprocess.Popen([viewer_cmd, image_path])
+        except Exception as e:
+            # This catches errors like "Permission denied"
+            self.ui.log_system_message(f"Error opening image viewer: {e}")
 
     def _create_formatted_help_popup(self, title, help_text):
         """
