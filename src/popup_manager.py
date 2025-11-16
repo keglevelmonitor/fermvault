@@ -25,7 +25,7 @@ class PopupManager:
     POPUP_LIST = [
         "Temperature Setpoints", "PID & Tuning", "Notification Settings", "API & FG Settings", 
         "Brew Sessions", "System Settings", "Wiring Diagram", "Help", "About",
-        "Support this Project"
+        "Support this App"
     ]
     # --- END MODIFICATION ---
     
@@ -243,7 +243,7 @@ class PopupManager:
         elif name == "Help": self._open_help_popup()
         elif name == "About": self._open_about_popup()
         # --- NEW: Handle Support popup ---
-        elif name == "Support this Project": 
+        elif name == "Support this App": 
             self._open_support_popup(is_launch=False)
         # --- END NEW ---
         else: self.ui.log_system_message(f"Error: Popup '{name}' not implemented.")
@@ -1448,22 +1448,143 @@ class PopupManager:
             print(f"Error getting Git commit hash: {e}")
             return "N/A (Error)"
 
-    def _open_about_popup(self):
-        # 1. Get the app name (set in main.py)
-        app_name = self.ui.app_version_string
+    def _add_changelog_section(self, parent_frame, popup_window):
+        """Creates and populates the changelog scrolled text area."""
         
-        # 2. Get the Git commit hash
+        changelog_frame = ttk.Frame(parent_frame, padding=(0, 10, 0, 0))
+        changelog_frame.pack(expand=True, fill="both")
+
+        ttk.Label(changelog_frame, text="Change Log:", font=('TkDefaultFont', 10, 'bold')).pack(anchor='w', pady=(0, 5))
+        
+        # Create the scrolled text widget
+        log_text_widget = scrolledtext.ScrolledText(
+            changelog_frame, 
+            height=10, 
+            wrap="word", 
+            relief="sunken", 
+            borderwidth=1,
+            state="disabled" # Start as read-only
+        )
+        log_text_widget.pack(expand=True, fill="both")
+        
+        try:
+            # --- Path to changelog.txt ---
+            # Assumes popup_manager.py is in 'src/' and assets is also in 'src/'
+            src_dir = os.path.dirname(os.path.abspath(__file__))
+            # Your changelog is in 'src/assets/changelog.txt'
+            # But your file structure shows 'changelog.txt' in the root 'fermvault/' directory
+            # I will use the root directory, as that is standard.
+            
+            project_dir = os.path.dirname(src_dir) # This is the 'fermvault/' folder
+            changelog_path = os.path.join(project_dir, "changelog.txt")
+            
+            # --- FIX: Check for changelog in src/assets/ if not in root ---
+            if not os.path.exists(changelog_path):
+                 # User said: "the text for the change log is in the popup_manager.py/asset/ folder"
+                 # This means 'src/assets/changelog.txt'
+                 changelog_path = os.path.join(src_dir, "assets", "changelog.txt")
+            # --- END FIX ---
+
+            with open(changelog_path, 'r', encoding='utf-8') as f:
+                changelog_content = f.read()
+
+            log_text_widget.config(state="normal") # Make writable to insert text
+            log_text_widget.insert("1.0", changelog_content)
+            log_text_widget.config(state="disabled") # Return to read-only
+
+        except FileNotFoundError:
+            log_text_widget.config(state="normal")
+            log_text_widget.insert("1.0", "changelog.txt file not found.")
+            log_text_widget.config(state="disabled")
+        except Exception as e:
+            log_text_widget.config(state="normal")
+            log_text_widget.insert("1.0", f"Error loading changelog: {e}")
+            log_text_widget.config(state="disabled")
+
+    def _open_about_popup(self):
+        """
+        Displays the 'About' window with changelog and revision info.
+        (This function replaces the simple messagebox version)
+        """
+        popup = tk.Toplevel(self.root)
+        popup.title("About Fermentation Vault")
+        # popup.geometry("750x520") # We'll let _center_popup handle this
+        popup.resizable(False, False); popup.transient(self.root); popup.grab_set()
+
+        frame = ttk.Frame(popup, padding="10"); frame.pack(expand=True, fill="both")
+
+        # --- 1. Title ---
+        ttk.Label(frame, text="Fermentation Vault", font=('TkDefaultFont', 14, 'bold')).pack(pady=(0, 10))
+        
+        # --- 2. Copyright Text (Adapted) ---
+        copyright_text = (
+            "Fermentation Vault(c) name, texts, UI/UX "
+            "(User Interface/User Experience or Graphical User Interface) and program code are copyrighted. "
+            "This material and all components of this program are protected by "
+            "copyright law. Unauthorized use, duplication, or distribution is "
+            "strictly prohibited. This application is provided as-is without warranty."
+        )
+        ttk.Label(frame, text=copyright_text, wraplength=700, justify=tk.LEFT).pack(anchor='w', pady=(0, 10))
+
+        # --- 3. Version and Revision (Using your git hash method) ---
+        
+        # Get the "v1.0" part from main.py
+        version_display = self.ui.app_version_string if self.ui.app_version_string else 'Fermentation Vault'
+        # Remove the base name if it's there
+        if "Fermentation Vault" in version_display:
+             version_display = version_display.replace("Fermentation Vault", "").strip()
+             
+        # Get the git hash
         app_revision = self._get_git_commit_hash()
         
-        # 3. Display the popup
-        messagebox.showinfo(
-            "About Fermentation Vault",
-            f"{app_name}\n"
-            f"Revision: {app_revision}\n"
-            "\n"
-            "This application is provided as-is without warranty.\n"
-            "Always monitor your fermentation equipment."
-        )    
+        version_text = f"Version: {version_display} (Revision: {app_revision})"
+        ttk.Label(frame, text=version_text, font=('TkDefaultFont', 10, 'italic')).pack(anchor='w', pady=(5, 10))
+
+        # --- 4. License Key Section (OMITTED as requested) ---
+
+        # --- 5. Changelog Section ---
+        self._add_changelog_section(frame, popup) 
+        
+        # --- 6. Attribution Link (Placeholder for your assets) ---
+        def open_flaticon_link(event):
+            try:
+                import webbrowser
+                # This is a good default attribution link, update if you know the source
+                webbrowser.open_new("https://www.flaticon.com")
+            except Exception as e:
+                messagebox.showerror("Link Error", f"Could not open link: {e}", parent=popup)
+
+        link_label = ttk.Label(
+            popup, 
+            text="App icons created by Pixel Perfect - Flaticon (Placeholder)", 
+            foreground="blue", 
+            cursor="hand2", 
+            font=('TkDefaultFont', 8, 'italic', 'underline'), 
+            wraplength=700, 
+            justify=tk.LEFT
+        )
+        link_label.pack(fill="x", side="bottom", pady=(0, 5), padx=10) 
+        link_label.bind("<Button-1>", open_flaticon_link)
+        
+        # --- 7. Button Frame (with Support Button) ---
+        buttons_frame = ttk.Frame(popup, padding=(10, 5)); 
+        buttons_frame.pack(fill="x", side="bottom") 
+        
+        # --- MODIFICATION: Added "Support this App" button ---
+        ttk.Button(
+            buttons_frame, 
+            text="Support this App", 
+            command=lambda: (popup.destroy(), self._open_support_popup(is_launch=False))
+        ).pack(side="left", pady=5)
+        # --- END MODIFICATION ---
+
+        ttk.Button(buttons_frame, text="Close", command=popup.destroy, width=10).pack(side="right", pady=5)
+        
+        # --- 8. Center Popup ---
+        popup.update_idletasks()
+        popup_width = 750
+        popup_height = 520
+        self._center_popup(popup, popup_width, popup_height)
     
     def _get_help_section(self, section_name):
         """
@@ -1791,11 +1912,11 @@ class PopupManager:
             
     def _open_support_popup(self, is_launch=False):
         """
-        Displays the 'Support this Project' popup, which includes the EULA.
+        Displays the 'Support this App' popup, which includes the EULA.
         'is_launch=True' modifies behavior (e.g., forces modal).
         """
         popup = tk.Toplevel(self.root)
-        popup.title("Support This Project & EULA")
+        popup.title("Support This App & EULA")
         
         # --- 1. Load Image ---
         self._load_support_image() # Load/check image
@@ -1826,10 +1947,10 @@ class PopupManager:
         top_frame.grid_columnconfigure(1, weight=0) # Image column
 
         support_text = (
-            "This project took hundreds of hours to develop, test, and optimize. "
-            "Please consider donating to this project so improvements and enhancements "
+            "This App took hundreds of hours to develop, test, and optimize. "
+            "Please consider donating to this App so improvements and enhancements "
             "can be made. If you wish to receive customer support via email, please "
-            "make a reasonable donation in support of this project. Customer support "
+            "make a reasonable donation in support of this App. Customer support "
             "requests without a donation may not be considered for response."
         )
         

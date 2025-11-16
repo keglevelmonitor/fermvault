@@ -41,8 +41,8 @@ class MainUIBase:
         ]
         # --- END MODIFICATION ---
         
-        # --- MODIFICATION: Added 'PID & Tuning' ---
-        self.popup_list = ["Temperature Setpoints", "PID & Tuning", "Notification Settings", "API & FG Settings", "Brew Sessions", "System Settings", "Wiring Diagram", "Help", "About", "Support this Project"]
+        # --- MODIFICATION: Added 'PID & Tuning' and changed "Support" ---
+        self.popup_list = ["Temperature Setpoints", "PID & Tuning", "Notification Settings", "API & FG Settings", "Brew Sessions", "System Settings", "Wiring Diagram", "Help", "About", "Support this App"]
         # --- END MODIFICATION ---
         
         self.root.title("Fermentation Vault")
@@ -269,12 +269,12 @@ class MainUIBase:
         # --- MODIFICATION: The 'state="disabled"' is correct ---
         settings_menu.add_command(label="Info", font=bold_font, state="disabled")
         
-        # --- MODIFICATION: Add "Support this Project" to info list ---
+        # --- MODIFICATION: Add "Support this App" to info list ---
         info_items = [
             "Wiring Diagram", 
             "Help", 
             "About",
-            "Support this Project"
+            "Support this App"
         ]
         # --- END MODIFICATION ---
 
