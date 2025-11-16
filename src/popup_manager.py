@@ -1745,9 +1745,7 @@ class PopupManager:
             "ramp_pid_landing_zone": str(self.settings_manager.get("ramp_pid_landing_zone", 0.5)),
             "crash_pid_envelope_width": str(self.settings_manager.get("crash_pid_envelope_width", 2.0))
         }
-        # --- MODIFICATION: Add PID logging state ---
         old_pid_logging_state = self.settings_manager.get("pid_logging_enabled", False)
-        # --- END MODIFICATION ---
 
         # 2. Get new values from UI
         new_vals = {
@@ -1762,79 +1760,90 @@ class PopupManager:
             "ramp_pid_landing_zone": self.ramp_pid_landing_zone_var.get(),
             "crash_pid_envelope_width": self.crash_pid_envelope_width_var.get()
         }
-        # --- MODIFICATION: Add PID logging state ---
         new_pid_logging_state = self.pid_logging_var.get()
-        # --- END MODIFICATION ---
         
-        # 3. Check for changes
-        has_changed = False
+        # 3. Check for changes (NEW LOGIC)
+        text_fields_changed = False
         for key in new_vals:
             if new_vals[key] != old_vals[key]:
-                has_changed = True
+                text_fields_changed = True
                 break
         
-        if not has_changed and new_pid_logging_state == old_pid_logging_state:
+        logging_state_changed = (new_pid_logging_state != old_pid_logging_state)
+
+        # 3a. Check if NOTHING changed
+        if not text_fields_changed and not logging_state_changed:
             self.ui.log_system_message("PID & Tuning settings saved. (No changes detected.)")
             popup.destroy()
             return
 
-        # 4. Exit Gate (askyesnocancel)
-        title = "Confirm Expert Settings"
-        message = ("You have made changes to the PID & Tuning settings.\n\n"
-                   "- Yes:   Save all changes and close.\n"
-                   "- No:    Exit without saving.\n"
-                   "- Cancel: Return to the settings window.")
-        
-        choice = messagebox.askyesnocancel(title, message, parent=popup)
-        
-        if choice is None: # Cancel
-            return # Return to settings
-        elif choice is False: # No
-            popup.destroy() # Exit without saving
-            return
+        # 3b. Check if text fields changed (which requires the challenge)
+        if text_fields_changed:
+            # 4. Exit Gate (askyesnocancel)
+            title = "Confirm Expert Settings"
+            message = ("You have made changes to the PID & Tuning settings.\n\n"
+                       "- Yes:   Save all changes and close.\n"
+                       "- No:    Exit without saving.\n"
+                       "- Cancel: Return to the settings window.")
+            
+            choice = messagebox.askyesnocancel(title, message, parent=popup)
+            
+            if choice is None: # Cancel
+                return # Return to settings
+            elif choice is False: # No
+                popup.destroy() # Exit without saving
+                return
+            # If choice is True (Yes), we fall through to Step 5.
 
-        # 5. User clicked YES. Validate and Save.
+        # 5. User clicked YES, OR only the checkbox changed. Validate and Save.
         try:
             log_parts = []
             
-            # Validate all, then save all
-            validated_settings = {}
-            for key, str_val in new_vals.items():
-                val = self._to_float_or_error(str_val)
-                validated_settings[key] = val
+            # A. Validate and Save Text Fields (if they changed)
+            if text_fields_changed:
+                validated_settings = {}
+                try:
+                    # First, validate all
+                    for key, str_val in new_vals.items():
+                        val = self._to_float_or_error(str_val)
+                        validated_settings[key] = val
+                        
+                        # Log changes
+                        if str(val) != old_vals[key]:
+                            log_parts.append(f"{key} set to {val}.")
+                    
+                    # Second, save all (if validation passed)
+                    for key, val in validated_settings.items():
+                        self.settings_manager.set(key, val)
+                    
+                    # Third, update PID controller
+                    self.temp_controller.pid.Kp = validated_settings['pid_kp']
+                    self.temp_controller.pid.Ki = validated_settings['pid_ki']
+                    self.temp_controller.pid.Kd = validated_settings['pid_kd']
+                    print("[TempController] PID values updated by user.")
                 
-                # Check for changes to log
-                if str(val) != old_vals[key]:
-                    log_parts.append(f"{key} set to {val}.")
+                except ValueError as e:
+                    # Validation failed, show error and stop
+                    messagebox.showerror("Input Error", f"All values must be valid numbers. ({e})", parent=popup)
+                    return # Stop the save process
             
-            # If all are valid, save them
-            for key, val in validated_settings.items():
-                self.settings_manager.set(key, val)
-                
-            # --- MODIFICATION: Save PID logging state ---
-            if new_pid_logging_state != old_pid_logging_state:
+            # B. Save Logging State (if it changed)
+            if logging_state_changed:
                 self.settings_manager.set("pid_logging_enabled", new_pid_logging_state)
                 log_parts.append(f"PID Logging {'enabled' if new_pid_logging_state else 'disabled'}.")
-            # --- END MODIFICATION ---
-
-            # --- CRITICAL: Force PID to reload new Kp/Ki/Kd values ---
-            self.temp_controller.pid.Kp = validated_settings['pid_kp']
-            self.temp_controller.pid.Ki = validated_settings['pid_ki']
-            self.temp_controller.pid.Kd = validated_settings['pid_kd']
-            print("[TempController] PID values updated by user.")
-            # ---
-            
+                
+            # C. Final Log Message
             if log_parts:
                 message = "PID & Tuning settings saved. " + " ".join(log_parts)
             else:
+                # This should only be hit if the "no changes" check failed, which is rare.
                 message = "PID & Tuning settings saved. (No changes detected.)"
             
             self.ui.log_system_message(message)
             popup.destroy()
 
-        except ValueError as e:
-            messagebox.showerror("Input Error", f"All values must be valid numbers. ({e})", parent=popup)
         except Exception as e:
+            # Catch any other unexpected errors
             messagebox.showerror("Error", f"An unexpected error occurred: {e}", parent=popup)
 
     def _reset_pid_tuning_to_defaults(self):

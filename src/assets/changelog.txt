@@ -4,6 +4,7 @@ Upcoming enhancements:
 
 Change Log:
 2025-11-16
+- intermediary challenge on PID & Tuning popup applies only if a setting/parameter is changed, not just logging
 - added intermediate dialog on action, "Check for updates"
 - corrected to clear stale API data when service is set to OFF
 - corrected FG message area to be blank (instead of Pending) when API off or API error
