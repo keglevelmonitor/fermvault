@@ -12,3 +12,5 @@ Change Log:
 2025-11-12
 - completely restructured app to follow a more standard deployment strategy for RPi
 - wrote README.md to explain new installation process
+
+
