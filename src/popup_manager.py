@@ -1309,9 +1309,9 @@ class PopupManager:
         # --- Finalize sizing and centering ---
         popup.update_idletasks()
         
-        # SIZING: Force the final popup window to 720x600
-        popup_width = 720 
-        popup_height = 600
+        # SIZING: Force the final popup window to 680x520
+        popup_width = 680 
+        popup_height = 520
         
         # Hide the popup *after* getting its size
         popup.withdraw()

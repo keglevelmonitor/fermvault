@@ -1,26 +1,35 @@
-💻 INSTALLATION
+💻 Fermentation Vault Project
 
-To install FermVault on your Raspberry Pi, open Terminal and follow these instructions to run the three commands.
+This project requires special hardware and must be wired carefully according to the wiring diagram. 
 
-NOTES ARE IN ALL CAPS! DO NOT TYPE NOTES!
+## ⚙️ Hardware Requirements
 
-OPEN TERMINAL AND AT THE DEFAULT PROMPT ENTER THESE COMMANDS:
+For the complete list of required hardware, part numbers, and purchasing links, please see the detailed hardware list:
 
-TO CLONE THE REPOSITORY:
+➡️ **[View Detailed Hardware List](assets/hardware.md)**
+
+## ⚡ Wiring Diagram
+
+Here is the required wiring setup. Follow this diagram carefully.
+![Wiring Diagram for FermVault](assets/wiring.gif)
+
+To install the FermVault App on your Raspberry Pi:
+
+Open **Terminal** and run these three commands one-after-another:
+    (explanations in parenthesis)
 
 git clone https://github.com/keglevelmonitor/fermvault.git
-
-TO NAVIGATE TO THE PROJECT FOLDER:
+    (clones the repository)
 
 cd ~/fermvault
-
-TO INSTALL THE APP ON YOUR PI:
+    (navigates to the project folder)
 
 ./install.sh
+    (installs the dependencies and app launcher on your RPi)
 
 
 That's it! You will now find "Fermentation Vault" in your application menu under, "Other". 
-You can use the "Check for Updates" action inside the app to check for and install future updates.
+You can use the "Check for Updates" action inside the app to install future updates.
 
 REFERENCE file structure:
 ```

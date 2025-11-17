@@ -1,6 +1,6 @@
-#!/bin.bash
+#!/bin/bash
 # update.sh
-# Handles post-pull dependency updates for FermVault.
+# Handles pulling code AND dependency updates for FermVault.
 # --- MODIFIED TO USE VIRTUAL ENVIRONMENT ---
 
 # --- 1. Define Variables ---
@@ -13,7 +13,7 @@ VENV_PYTHON_EXEC="$VENV_DIR/bin/python"
 # --- END ADDED ---
 
 echo "--- FermVault Update Script ---"
-echo "Starting dependency refresh in $PROJECT_DIR"
+echo "Starting update in $PROJECT_DIR"
 
 # --- 2. Check for Git Sanity (Optional, but good defense against user error) ---
 if [ ! -d "$PROJECT_DIR/.git" ]; then
@@ -22,7 +22,17 @@ if [ ! -d "$PROJECT_DIR/.git" ]; then
     exit 1
 fi
 
-# --- 3. Run Dependency Installation (MODIFIED) ---
+# --- 3. *** NEW: Run Git Pull *** ---
+echo "--- Pulling latest code from git... ---"
+git pull
+if [ $? -ne 0 ]; then
+    echo "[ERROR] 'git pull' failed. Check for local changes or branch conflicts."
+    exit 1
+fi
+echo "--- Git pull complete ---"
+# --- END NEW ---
+
+# --- 4. Run Dependency Installation (MODIFIED) ---
 echo "Checking for new Python dependencies..."
 
 # --- ADDED: Check if venv exists first ---
