@@ -37,15 +37,16 @@ class MainUIBase:
         self.control_mode_options = ["Ambient", "Beer", "Ramp", "Crash"]
         # --- END MODIFICATION ---
         
-        # --- MODIFICATION: Added "Reset to Defaults" AND "Check for Updates" ---
+        # --- MODIFICATION START: Updated Action Options ---
         self.action_options = [
-            "Send Status Message", "Update API & Temp Data", "Reload Brew Sessions", 
-            "Run FG Calculator", "Check for Updates", "Reset to Defaults"
+            "Send Status Message", "Update API Data", "Update Temperature Data", 
+            "Reload Brew Sessions", "Run FG Calculator", "Check for Updates", "Reset to Defaults"
         ]
-        # --- END MODIFICATION ---
+        # --- MODIFICATION END ---
         
-        # --- MODIFICATION: Added 'PID & Tuning' and changed "Support" ---
-        self.popup_list = ["Temperature Setpoints", "PID & Tuning", "Notification Settings", "API & FG Settings", "Brew Sessions", "System Settings", "Wiring Diagram", "Help", "About", "Support this App"]
+        # --- MODIFICATION: Updated Popup List (Adding Configuration categories) ---
+        self.popup_list = ["Temperature Setpoints", "PID & Tuning", "Notification Settings", "API & FG Settings", 
+                           "Brew Sessions", "System Settings", "Wiring Diagram", "Help", "About", "Support this App"]
         # --- END MODIFICATION ---
         
         self.root.title("Fermentation Vault")
@@ -133,45 +134,31 @@ class MainUIBase:
         s.configure('Blue.TLabel', background='lightblue1', foreground='black')
         s.configure('Gray.TLabel', background='gainsboro', foreground='black')
         s.configure('Green.TLabel', background='springgreen', foreground='black')
-        # --- MODIFICATION: Added new Yellow style ---
         s.configure('Yellow.TLabel', background='khaki1', foreground='black')
-        # ------------------------------------------
-        # --- MODIFICATION: Added new DarkGreen style for heartbeat ---
         s.configure('DarkGreen.TLabel', background='green', foreground='white')
-        # -------------------------------------------------------------
         
-        # --- NEW STYLE: Red Background for Fail-Safe with white text ---
+        # --- New Styles ---
         s.configure('AlertRed.TLabel', background='red', foreground='white', font=('TkDefaultFont', 10, 'bold'))
-        # -------------------------------------------------------------
-        
-        # --- NEW STYLE: MediumGreen for FG Stable ---
         s.configure('MediumGreen.TLabel', background='#3CB371', foreground='black')
-        # --- END NEW STYLE ---
+        # ------------------
 
-        # --- FIX: Custom Combobox Styles using 'map' to force fieldbackground in 'readonly' state ---
-        s.map('Red.TCombobox', 
-              fieldbackground=[('readonly', 'lightcoral')]) 
-        
-        s.map('MediumGreen.TCombobox', 
-              fieldbackground=[('readonly', '#3CB371')])
-              
-        s.map('DarkGreen.TCombobox', 
-              fieldbackground=[('readonly', 'green')])
-        # -------------------------------------------------------------------------------------------
+        # --- Custom Combobox Styles ---
+        s.map('Red.TCombobox', fieldbackground=[('readonly', 'lightcoral')]) 
+        s.map('MediumGreen.TCombobox', fieldbackground=[('readonly', '#3CB371')])
+        s.map('DarkGreen.TCombobox', fieldbackground=[('readonly', 'green')])
 
         # Define a style for centering column headers
         s.configure('Center.TLabel', anchor='center')
 
-        # --- Grid Setup (All widgets placed directly in main_frame) ---
+        # --- Grid Setup ---
         self.main_frame = ttk.Frame(self.root, padding="10")
         self.main_frame.pack(fill="both", expand=True)
         
-        # --- Column Definitions (MODIFIED) ---
-        NARROW_FIELD_WIDTH = 55   # Was 75
+        # --- Column Definitions ---
+        NARROW_FIELD_WIDTH = 55
         UNIT_FIELD_WIDTH = 15 
-        WIDE_TIMESTAMP_WIDTH = 150  # Was 55
-        DATA_LABEL_MIN_WIDTH = 100  # Was 65 + 75 (140)
-        # ---------------------------------
+        WIDE_TIMESTAMP_WIDTH = 150
+        DATA_LABEL_MIN_WIDTH = 100
         
         self.main_frame.grid_columnconfigure(0, weight=0, minsize=80)    # Col 0: Control Labels
         self.main_frame.grid_columnconfigure(1, weight=0, minsize=110)   # Col 1: Control Dropdowns/Buttons
@@ -180,31 +167,27 @@ class MainUIBase:
         self.main_frame.grid_columnconfigure(4, weight=0, minsize=UNIT_FIELD_WIDTH) # Col 4: Setpoint Unit
         self.main_frame.grid_columnconfigure(5, weight=0, minsize=NARROW_FIELD_WIDTH) # Col 5: Actual Data
         self.main_frame.grid_columnconfigure(6, weight=0, minsize=UNIT_FIELD_WIDTH) # Col 6: Actual Unit
-        self.main_frame.grid_columnconfigure(7, weight=1, minsize=WIDE_TIMESTAMP_WIDTH) # Col 7: Timestamp (Expands most)
+        self.main_frame.grid_columnconfigure(7, weight=1, minsize=WIDE_TIMESTAMP_WIDTH) # Col 7: Timestamp
         
-        # --- Header Frame (Stays the same for Dropdown placement) ---
+        # --- Header Frame ---
         self.header_frame = ttk.Frame(self.main_frame)
         self.header_frame.grid(row=0, column=0, columnspan=8, sticky='ew')
         
-        # --- MODIFICATION: Reconfigured header columns for desired layout ---
-        self.header_frame.grid_columnconfigure(0, weight=0, minsize=80)    # Col 0: Labels (Fixed)
-        self.header_frame.grid_columnconfigure(1, weight=1, minsize=240)   # Col 1: Dropdowns (Expand/Shrink, but not too small)
-        self.header_frame.grid_columnconfigure(2, weight=0, minsize=0)     # Col 2: Unused
-        self.header_frame.grid_columnconfigure(3, weight=0, minsize=0)     # Col 3: Unused
-        self.header_frame.grid_columnconfigure(4, weight=1)                # Col 4: Spacer (Flexible)
-        self.header_frame.grid_columnconfigure(5, weight=0, minsize=338)   # Col 5: Menu Buttons (Fixed Width, 30% wider)
-        # --- END MODIFICATION ---
+        # --- Header Columns ---
+        self.header_frame.grid_columnconfigure(0, weight=0, minsize=80)    
+        self.header_frame.grid_columnconfigure(1, weight=1, minsize=240)   
+        self.header_frame.grid_columnconfigure(2, weight=0, minsize=0)     
+        self.header_frame.grid_columnconfigure(3, weight=0, minsize=0)     
+        self.header_frame.grid_columnconfigure(4, weight=1)               
+        self.header_frame.grid_columnconfigure(5, weight=0, minsize=338)   
         
         row_idx = 0 
         
-        # --- Row 0 & 1: Header Dropdowns (API, Brew Session, Menus) ---
-        
-        # --- MODIFICATION: Added pady=(5, 5) for top spacing ---
+        # --- Row 0 & 1: Header Dropdowns ---
         ttk.Label(self.header_frame, text="API Service").grid(row=row_idx, column=0, sticky='w', pady=(5, 5))
         self.api_dropdown = ttk.Combobox(self.header_frame, textvariable=self.api_service_var, values=list(self.api_manager.available_services.keys()), state="readonly")
         self.api_dropdown.grid(row=row_idx, column=1, sticky='ew', padx=5, pady=(5, 5))
         self.api_dropdown.bind("<<ComboboxSelected>>", self._handle_api_selection_change)
-        # --- END MODIFICATION ---
 
         # Row 1
         ttk.Label(self.header_frame, text="Brew Session").grid(row=row_idx + 1, column=0, sticky='w', pady=(5, 5))
@@ -216,39 +199,27 @@ class MainUIBase:
         self.menu_container = ttk.Frame(self.header_frame)
         self.menu_container.grid(row=0, column=5, rowspan=2, sticky='e', padx=5, pady=0)
         
-        # --- MODIFICATION: Configure one column for wide buttons ---
         self.menu_container.grid_columnconfigure(0, weight=1) 
-        # --- END MODIFICATION ---
         
-        # --- MODIFICATION: Replaced Combobox with Menubutton ---
-        
-        # --- Settings & Info Menu ---
-        self.settings_menubutton = ttk.Menubutton(self.menu_container, text="Settings & Info")
-        self.settings_menubutton.grid(row=0, column=0, sticky='ew', padx=2, pady=(5, 5))
-        
-        # --- MODIFICATION: THIS IS THE FIX ---
-        # The 'disabledforeground' option goes on the tk.Menu constructor
-        settings_menu = tk.Menu(self.settings_menubutton, tearoff=0, disabledforeground="black")
-        self.settings_menubutton["menu"] = settings_menu
-        
-        # --- NEW: Get bold font for headings ---
+        # Load bold font helper
         try:
             default_font = tkfont.nametofont("TkDefaultFont")
             bold_font = default_font.copy()
             bold_font.config(weight="bold")
+            self.menu_heading_font = bold_font
         except:
-            # Fallback if tkfont fails
-            bold_font = ('TkDefaultFont', 10, 'bold')
-        # --- END NEW ---
+            self.menu_heading_font = ('TkDefaultFont', 10, 'bold')
+
+        # === MENU 1: SETTINGS ===
+        # --- MODIFICATION: Added width=25 so the button is wider than the menu items ---
+        self.config_menubutton = ttk.Menubutton(self.menu_container, text="Settings", width=20)
+        self.config_menubutton.grid(row=0, column=0, sticky='ew', padx=2, pady=(5, 5))
+        # -------------------------------------------------------------------------------
         
-        # --- MODIFICATION: Manually build menu with new structure ---
+        config_menu = tk.Menu(self.config_menubutton, tearoff=0, disabledforeground="black")
+        self.config_menubutton["menu"] = config_menu
         
-        # 1. Settings Heading
-        # --- MODIFICATION: The 'state="disabled"' is correct ---
-        settings_menu.add_command(label="Settings", font=bold_font, state="disabled")
-        
-        # Define the items that go under the "Settings" heading
-        settings_items = [
+        config_items = [
             "Temperature Setpoints", 
             "PID & Tuning", 
             "Notification Settings", 
@@ -257,114 +228,54 @@ class MainUIBase:
             "System Settings"
         ]
         
-        for item in settings_items:
-            # Check if the item is in the official list from PopupManager
+        for item in config_items:
             if item in self.popup_list:
-                settings_menu.add_command(
-                    label=item,
-                    command=lambda choice=item: self._handle_settings_menu(choice)
-                )
+                config_menu.add_command(label=item, command=lambda choice=item: self._open_popup_by_name(choice))
         
-        # 2. Separator
-        settings_menu.add_separator()
+        # === MENU 2: UTILITIES ===
+        # --- MODIFICATION: Added width=25 so the button is wider than the menu items ---
+        self.utilities_menubutton = ttk.Menubutton(self.menu_container, text="Utilities", width=20)
+        self.utilities_menubutton.grid(row=1, column=0, sticky='ew', padx=2, pady=(5, 5))
+        # -------------------------------------------------------------------------------
 
-        # 3. Info Heading
-        # --- MODIFICATION: The 'state="disabled"' is correct ---
-        settings_menu.add_command(label="Info", font=bold_font, state="disabled")
+        utilities_menu = tk.Menu(self.utilities_menubutton, tearoff=0, disabledforeground="black")
+        self.utilities_menubutton["menu"] = utilities_menu
         
-        # --- MODIFICATION: Add "Support this App" to info list ---
+        # 1. Operations
+        utilities_menu.add_command(label="Operations", font=self.menu_heading_font, state="disabled")
+        
+        utilities_menu.add_command(label="Update Temperature Data", command=lambda: self._handle_actions_menu("Update Temperature Data"))
+        utilities_menu.add_command(label="Update API Data", command=lambda: self._handle_actions_menu("Update API Data"))
+        utilities_menu.add_command(label="Run FG Calculator", command=lambda: self._handle_actions_menu("Run FG Calculator"))
+        utilities_menu.add_command(label="Reload Brew Sessions", command=lambda: self._handle_actions_menu("Reload Brew Sessions"))
+        
+        utilities_menu.add_separator()
+        
+        # 2. Maintenance & Reset
+        utilities_menu.add_command(label="Maintenance", font=self.menu_heading_font, state="disabled")
+        utilities_menu.add_command(label="Check for Updates", command=lambda: self._handle_actions_menu("Check for Updates"))
+        utilities_menu.add_command(label="Reset to Defaults", command=lambda: self._handle_actions_menu("Reset to Defaults"))
+        
+        # 3. Info & Help
+        utilities_menu.add_separator()
+        utilities_menu.add_command(label="App Info", font=self.menu_heading_font, state="disabled")
+
         info_items = [
-            "Wiring Diagram", 
-            "Help", 
-            "About",
-            "Support this App"
+            "Wiring Diagram", "Help", "About", "Support this App"
         ]
-        # --- END MODIFICATION ---
 
         for item in info_items:
-            # --- MODIFICATION: Check if item is in the popup_list ---
-            # This now correctly adds all 4 items
             if item in self.popup_list:
-                settings_menu.add_command(
-                    label=item,
-                    command=lambda choice=item: self._handle_settings_menu(choice)
-                )
-            # --- END MODIFICATION ---
-
-        # --- MODIFICATION: Removed manual placeholder ---
-        # item = "Support this Project"
-        # settings_menu.add_command(...)
-        # --- END MODIFICATION ---
+                utilities_menu.add_command(label=item, command=lambda choice=item: self._open_popup_by_name(choice))
         
-        # --- Actions Menu ---
-        self.actions_menubutton = ttk.Menubutton(self.menu_container, text="Actions")
-        self.actions_menubutton.grid(row=1, column=0, sticky='ew', padx=2, pady=(5, 5))
-
-        # Create the actual menu
-        # --- MODIFICATION: Add disabledforeground and build manually ---
-        actions_menu = tk.Menu(self.actions_menubutton, tearoff=0, disabledforeground="black")
-        self.actions_menubutton["menu"] = actions_menu
-
-        # 1. Actions Heading
-        actions_menu.add_command(label="Actions", font=bold_font, state="disabled")
+        row_idx = 0 
         
-        # Define the items that go under the "Actions" heading
-        action_items = [
-            "Send Status Message", 
-            "Update API & Temp Data", 
-            "Reload Brew Sessions", 
-            "Run FG Calculator"
-        ]
-        
-        for item in action_items:
-            if item in self.action_options: # Check against the master list
-                actions_menu.add_command(
-                    label=item,
-                    command=lambda choice=item: self._handle_actions_menu(choice)
-                )
-        
-        # 2. Separator
-        actions_menu.add_separator()
-        
-        # --- NEW: Updates Heading ---
-        actions_menu.add_command(label="Updates", font=bold_font, state="disabled")
-        
-        updates_items = [
-            "Check for Updates" # <-- NEW ITEM
-        ]
-        
-        for item in updates_items:
-            if item in self.action_options:
-                 actions_menu.add_command(
-                    label=item,
-                    command=lambda choice=item: self._handle_actions_menu(choice)
-                )
-                
-        # 3. Separator (Separating Updates from Reset)
-        actions_menu.add_separator()
-
-        # 4. Reset Heading
-        actions_menu.add_command(label="Reset", font=bold_font, state="disabled")
-        
-        reset_items = [
-            "Reset to Defaults"
-        ]
-
-        for item in reset_items:
-            if item in self.action_options: # Check against the master list
-                actions_menu.add_command(
-                    label=item,
-                    command=lambda choice=item: self._handle_actions_menu(choice)
-                )
-        # --- END MODIFICATION ---
-        
-        # --- Horizontal Separator (Header to Data Grid) ---
+        # --- Horizontal Separator ---
         main_grid_row_idx = 1
         ttk.Separator(self.main_frame, orient='horizontal').grid(row=main_grid_row_idx, column=0, columnspan=8, sticky='ew', pady=(5, 10))
         main_grid_row_idx += 1
         
         # --- Data Grid Headers ---
-        # --- MODIFICATION: Control Mode moved here ---
         ttk.Label(self.main_frame, text="Control Mode").grid(row=main_grid_row_idx, column=0, sticky='w', padx=5, pady=5)
         self.control_mode_dropdown = ttk.Combobox(self.main_frame, textvariable=self.control_mode_var, values=self.control_mode_options, state="readonly", width=13)
         self.control_mode_dropdown.grid(row=main_grid_row_idx, column=1, sticky='w', padx=5, pady=5)
@@ -378,137 +289,95 @@ class MainUIBase:
         # --- Vertical Padding Constant ---
         VERTICAL_PADDING = (6, 6) 
         
-        # --- DATA ROW 1: Ambient Data & Monitoring ---
-        
-        # --- MODIFICATION: Monitoring Combobox (Initial style set to Red.TCombobox) ---
+        # --- DATA ROW 1: Ambient ---
         ttk.Label(self.main_frame, text="Monitoring").grid(row=main_grid_row_idx, column=0, sticky='w', padx=5, pady=VERTICAL_PADDING)
         self.monitoring_button = ttk.Combobox(self.main_frame, textvariable=self.monitoring_var, values=["OFF", "ON"], state="readonly", width=13, style="Red.TCombobox")
         self.monitoring_button.grid(row=main_grid_row_idx, column=1, sticky='w', padx=5, pady=VERTICAL_PADDING)
         self.monitoring_button.bind("<<ComboboxSelected>>", lambda event: self._toggle_monitoring())
-        # --- END MODIFICATION ---
 
-        # DATA SIDE: Ambient Label (Col 2), Setpoint (Col 3), Unit (Col 4), Actual (Col 5), Unit (Col 6), Timestamp (Col 7)
         ttk.Label(self.main_frame, text="Ambient").grid(row=main_grid_row_idx, column=2, sticky='e', padx=5, pady=VERTICAL_PADDING)
-        
         self.amb_target_label = ttk.Label(self.main_frame, textvariable=self.amb_setpoint_min_var, style='Gray.TLabel', relief='sunken', anchor='center', width=7)
         self.amb_target_label.grid(row=main_grid_row_idx, column=3, sticky='ew', padx=5, pady=VERTICAL_PADDING)
         ttk.Label(self.main_frame, text="F").grid(row=main_grid_row_idx, column=4, sticky='w', pady=VERTICAL_PADDING) 
-        
         self.amb_actual_label = ttk.Label(self.main_frame, textvariable=self.amb_actual_var, style='Gray.TLabel', relief='sunken', anchor='center', width=7)
         self.amb_actual_label.grid(row=main_grid_row_idx, column=5, sticky='ew', padx=5, pady=VERTICAL_PADDING)
         ttk.Label(self.main_frame, text="F").grid(row=main_grid_row_idx, column=6, sticky='w', pady=VERTICAL_PADDING) 
-        
         self.amb_timestamp_label = ttk.Label(self.main_frame, textvariable=self.amb_timestamp_var, relief='sunken', anchor='center')
         self.amb_timestamp_label.grid(row=main_grid_row_idx, column=7, sticky='ew', padx=5, pady=VERTICAL_PADDING)
 
         main_grid_row_idx += 1
         
-        # --- DATA ROW 2: Beer Data & Fan ---
-        
-        # --- MODIFICATION: Moved Fan up to fill the blank space ---
+        # --- DATA ROW 2: Beer & Fan ---
         ttk.Label(self.main_frame, text="Circulation Fan").grid(row=main_grid_row_idx, column=0, sticky='w', padx=5, pady=VERTICAL_PADDING)
         self.fan_dropdown = ttk.Combobox(self.main_frame, textvariable=self.fan_var, values=["Auto", "ON", "OFF"], state="readonly", width=13)
         self.fan_dropdown.grid(row=main_grid_row_idx, column=1, sticky='w', padx=5, pady=VERTICAL_PADDING)
         self.fan_dropdown.bind("<<ComboboxSelected>>", self._handle_fan_mode_change)
-        # --- END MODIFICATION ---
 
-        # DATA SIDE: Beer Label, Setpoint, Unit, Actual, Unit, Timestamp
         ttk.Label(self.main_frame, text="Beer").grid(row=main_grid_row_idx, column=2, sticky='e', padx=5, pady=VERTICAL_PADDING)
-        
         self.beer_target_label = ttk.Label(self.main_frame, textvariable=self.beer_setpoint_var, style='Gray.TLabel', relief='sunken', anchor='center', width=7)
         self.beer_target_label.grid(row=main_grid_row_idx, column=3, sticky='ew', padx=5, pady=VERTICAL_PADDING)
         ttk.Label(self.main_frame, text="F").grid(row=main_grid_row_idx, column=4, sticky='w', pady=VERTICAL_PADDING)
-        
         self.beer_actual_label = ttk.Label(self.main_frame, textvariable=self.beer_actual_var, style='Gray.TLabel', relief='sunken', anchor='center', width=7)
         self.beer_actual_label.grid(row=main_grid_row_idx, column=5, sticky='ew', padx=5, pady=VERTICAL_PADDING)
         ttk.Label(self.main_frame, text="F").grid(row=main_grid_row_idx, column=6, sticky='w', pady=VERTICAL_PADDING)
-        
         self.ramp_end_target_label = ttk.Label(self.main_frame, textvariable=self.ramp_end_target_var, relief='sunken', anchor='center')
         self.ramp_end_target_label.grid(row=main_grid_row_idx, column=7, sticky='ew', padx=5, pady=VERTICAL_PADDING)
         
         main_grid_row_idx += 1
         
-        # --- DATA ROW 3: OG Data & Heating Indicator ---
-        
-        # --- MODIFICATION: Moved Heat indicator up ---
+        # --- DATA ROW 3: OG ---
         self.heat_label = ttk.Label(self.main_frame, textvariable=self.heat_state_var, style='Gray.TLabel', anchor='center', relief='sunken')
         self.heat_label.grid(row=main_grid_row_idx, column=0, columnspan=2, sticky='ew', padx=5, pady=VERTICAL_PADDING)
-        # --- END MODIFICATION ---
 
-        # DATA SIDE: OG Label, Setpoint (Empty), Unit (Empty), Actual, Unit (Empty), Timestamp
         ttk.Label(self.main_frame, text="OG").grid(row=main_grid_row_idx, column=2, sticky='e', padx=5, pady=VERTICAL_PADDING) 
-        
         ttk.Label(self.main_frame, text="").grid(row=main_grid_row_idx, column=3, sticky='ew', padx=5, pady=VERTICAL_PADDING) 
         ttk.Label(self.main_frame, text="").grid(row=main_grid_row_idx, column=4, sticky='w', pady=VERTICAL_PADDING) 
-        
         self.og_display_label = ttk.Label(self.main_frame, textvariable=self.og_display_var, relief='sunken', anchor='center', width=7)
         self.og_display_label.grid(row=main_grid_row_idx, column=5, sticky='ew', padx=5, pady=VERTICAL_PADDING)
         ttk.Label(self.main_frame, text="").grid(row=main_grid_row_idx, column=6, sticky='w', pady=VERTICAL_PADDING) 
-        
         self.og_timestamp_label = ttk.Label(self.main_frame, textvariable=self.og_timestamp_var, relief='sunken', anchor='center')
         self.og_timestamp_label.grid(row=main_grid_row_idx, column=7, sticky='ew', padx=5, pady=VERTICAL_PADDING)
 
         main_grid_row_idx += 1
         
-        # --- DATA ROW 4: SG Data & Cooling Indicator ---
-        
-        # --- MODIFICATION: Moved Cool indicator up ---
+        # --- DATA ROW 4: SG ---
         self.cool_label = ttk.Label(self.main_frame, textvariable=self.cool_state_var, style='Gray.TLabel', anchor='center', relief='sunken')
         self.cool_label.grid(row=main_grid_row_idx, column=0, columnspan=2, sticky='ew', padx=5, pady=VERTICAL_PADDING)
-        # --- END MODIFICATION ---
 
-        # DATA SIDE: SG Label, Setpoint (Empty), Unit (Empty), Actual, Unit (Empty), Timestamp
         ttk.Label(self.main_frame, text="SG").grid(row=main_grid_row_idx, column=2, sticky='e', padx=5, pady=VERTICAL_PADDING) 
-        
         ttk.Label(self.main_frame, text="").grid(row=main_grid_row_idx, column=3, sticky='ew', padx=5, pady=VERTICAL_PADDING) 
         ttk.Label(self.main_frame, text="").grid(row=main_grid_row_idx, column=4, sticky='w', pady=VERTICAL_PADDING) 
-        
         self.sg_display_label = ttk.Label(self.main_frame, textvariable=self.sg_display_var, relief='sunken', anchor='center', width=7)
         self.sg_display_label.grid(row=main_grid_row_idx, column=5, sticky='ew', padx=5, pady=VERTICAL_PADDING)
         ttk.Label(self.main_frame, text="").grid(row=main_grid_row_idx, column=6, sticky='w', pady=VERTICAL_PADDING) 
-        
         self.sg_timestamp_label = ttk.Label(self.main_frame, textvariable=self.sg_timestamp_var, relief='sunken', anchor='center')
         self.sg_timestamp_label.grid(row=main_grid_row_idx, column=7, sticky='ew', padx=5, pady=VERTICAL_PADDING)
 
         main_grid_row_idx += 1
         
-        # --- DATA ROW 5: FG Data & Cooling Restriction Status ---
-        
-        # --- MODIFICATION: Moved Cool restriction label up ---
+        # --- DATA ROW 5: FG ---
         self.cool_restriction_label = ttk.Label(self.main_frame, textvariable=self.cool_restriction_var, style='Gray.TLabel', anchor='center', relief='sunken')
         self.cool_restriction_label.grid(row=main_grid_row_idx, column=0, columnspan=2, sticky='ew', padx=5, pady=VERTICAL_PADDING)
-        # --- END MODIFICATION ---
         
-        # DATA SIDE: FG Label, Setpoint (Empty), Unit (Empty), Actual, Unit (Empty), Timestamp
         ttk.Label(self.main_frame, text="FG").grid(row=main_grid_row_idx, column=2, sticky='e', padx=5, pady=VERTICAL_PADDING) 
-        
         ttk.Label(self.main_frame, text="").grid(row=main_grid_row_idx, column=3, sticky='ew', padx=5, pady=VERTICAL_PADDING) 
         ttk.Label(self.main_frame, text="").grid(row=main_grid_row_idx, column=4, sticky='w', pady=VERTICAL_PADDING) 
-        
         self.fg_label = ttk.Label(self.main_frame, textvariable=self.fg_status_var, style='Gray.TLabel', relief='sunken', anchor='center', width=7)
         self.fg_label.grid(row=main_grid_row_idx, column=5, sticky='ew', padx=5, pady=VERTICAL_PADDING)
         ttk.Label(self.main_frame, text="").grid(row=main_grid_row_idx, column=6, sticky='w', pady=VERTICAL_PADDING) 
         
-        # --- MODIFICATION: Bind label to new fg_message_var ---
         self.fg_timestamp_label = ttk.Label(self.main_frame, textvariable=self.fg_message_var, relief='sunken', anchor='center')
         self.fg_timestamp_label.grid(row=main_grid_row_idx, column=7, sticky='ew', padx=5, pady=VERTICAL_PADDING) 
-        # --- END MODIFICATION ---
 
         main_grid_row_idx += 1
         
-        # --- REMOVED ROW: Cooling Restriction Status was moved up ---
-        # self.cool_restriction_label = ttk.Label(...) # REMOVED
-        # main_grid_row_idx += 1 # REMOVED
-        # --- END REMOVED ROW ---
-
-        # --- Horizontal Separator (Data Grid to System Messages) ---
+        # --- Horizontal Separator ---
         ttk.Separator(self.main_frame, orient='horizontal').grid(row=main_grid_row_idx, column=0, columnspan=8, sticky='ew', pady=(10, 5))
         main_grid_row_idx += 1
         
-        # --- System Messages Area (Reduced Height to 5 rows) ---
+        # --- System Messages Area ---
         ttk.Label(self.main_frame, text="System Messages:").grid(row=main_grid_row_idx, column=0, sticky='w', pady=5)
         
-        # --- MODIFICATION START: Added Frame and Scrollbar ---
         log_frame = ttk.Frame(self.main_frame)
         log_frame.grid(row=main_grid_row_idx + 1, column=0, columnspan=8, sticky='nsew', padx=5, pady=5)
         
@@ -523,7 +392,6 @@ class MainUIBase:
         self.system_message_area.grid(row=0, column=0, sticky='nsew')
         
         self.log_scrollbar.config(command=self.system_message_area.yview)
-        # --- MODIFICATION END ---
         
         self.main_frame.grid_rowconfigure(main_grid_row_idx + 1, weight=1)
 
@@ -531,25 +399,19 @@ class MainUIBase:
         
         self._populate_brew_session_dropdown()
         
-        # --- THIS IS THE FIX ---
-        # Start the notification scheduler *after* all widgets are created
+        # Start the notification scheduler
         if self.notification_manager:
             self.notification_manager.start_scheduler()
             
-        # --- NEW: Set UI Ready Flag ---
+        # Set UI Ready Flag
         self.ui_ready = True
-        # --- END NEW ---
         
-        # --- MODIFICATION: Moved background check call here ---
-        # Start the check loop *after* the UI is fully built
+        # Start the background check
         self.root.after(5000, self._background_sensor_check)
-        # --- END MODIFICATION ---
         
-        # --- NEW: Show EULA/Support Popup on Launch ---
+        # Show EULA/Support Popup on Launch
         show_on_launch = self.settings_manager.get("show_eula_on_launch", True)
         if show_on_launch:
-            # We call _open_support_popup (from PopupManager)
-            # Use 'after' to ensure the main UI draws fully first
             self.root.after(100, lambda: self._open_support_popup(is_launch=True))
         # --- END NEW ---
 
@@ -729,11 +591,17 @@ class MainUIBase:
     def _handle_actions_menu(self, choice):
         print(f"Action triggered: {choice}")
         
-        if choice == "Update API & Temp Data":
+        # --- NEW SPLIT ACTIONS ---
+        if choice == "Update API Data":
+            # Runs network call (using notification_manager for threading)
             current_id = self.settings_manager.get("current_brew_session_id")
             if self.notification_manager:
-                self.notification_manager.fetch_api_data_now(current_id) 
+                self.notification_manager.fetch_api_data_now(current_id, is_scheduled=False) 
+            
+        elif choice == "Update Temperature Data":
+            # Forces the monitoring thread to do a synchronous sensor read and UI push
             self.temp_controller.update_control_logic_and_ui_data()
+        # -------------------------
             
         elif choice == "Send Status Message":
              if self.notification_manager:
@@ -746,10 +614,9 @@ class MainUIBase:
              if self.notification_manager:
                 self.notification_manager.run_fg_calc_and_update_ui()
         
-        # --- MODIFIED: Call the new function name ---
         elif choice == "Check for Updates":
+             # This calls the new Keglevel-style check logic
              self._check_for_updates() 
-        # --------------------------------------------
                 
         elif choice == "Reset to Defaults":
              self._confirm_and_reset_defaults()
