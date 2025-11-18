@@ -1471,3 +1471,4 @@ class MainUIBase:
         finally:
             # Always re-enable the standard close button so user isn't stuck
             self.root.after(0, lambda: close_btn.config(state="normal"))
+
