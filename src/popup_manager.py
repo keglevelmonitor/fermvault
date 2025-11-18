@@ -1,7 +1,8 @@
 """
-Fermentation Vault App
+fermvault app
 popup_manager.py
 """
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 import math

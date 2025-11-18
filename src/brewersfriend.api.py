@@ -1,4 +1,7 @@
-# brewersfriend.api.py
+"""
+fermvault app
+brewersfriend.api.py
+"""
 
 import requests
 import json

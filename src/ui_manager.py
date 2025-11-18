@@ -1,7 +1,8 @@
 """
-Fermentation Vault App
-ui_manager.py (Final Composition)
+fermvault app
+ui_manager.py
 """
+
 import tkinter as tk
 from ui_manager_base import MainUIBase
 from popup_manager import PopupManager 

@@ -1,12 +1,14 @@
 """
-Fermentation Vault App
+fermvault app
 main.py
 """
+
 import tkinter as tk
 import time
 import os
 import sys
 import threading
+import signal
 
 # --- FIX: Ensure all classes used later are imported here ---
 print("[DEBUG] Main: Importing SettingsManager...")
@@ -48,7 +50,6 @@ settings.set("control_mode", "Ambient Hold")
 # --- MODIFICATION: Check shutdown status ---
 if not settings.get_last_shutdown_status():
     print("[WARNING] Main: Previous shutdown was uncontrolled.")
-    # You can add any cleanup logic here
 else:
     print("[DEBUG] Main: Previous shutdown was controlled.")
 # --- END MODIFICATION ---
@@ -58,47 +59,71 @@ root = tk.Tk()
 root.withdraw() 
 print("[DEBUG] Main: Step 3 - Initializing APIManager...")
 
-# 1. Load Dynamic API Manager (Early initialization needed for other steps)
+# 1. Load Dynamic API Manager
 api_manager = APIManager(settings)
 api_manager.discover_services(BASE_DIR)
 print("[DEBUG] Main: Step 4 - Initializing NotificationManager...")
 
-# 2. Create the NotificationManager instance FIRST (pass None for UI temporarily)
+# 2. Create the NotificationManager instance
 notification_manager = NotificationManager(settings, ui_manager=None) 
 print("[DEBUG] Main: Step 5 - Initializing Control Components (RelayControl)...")
 
-# 3. Initialize Control Components (Independent of the UI)
+# 3. Initialize Control Components
 relay_control = RelayControl(settings, RELAY_PINS)
 print("[DEBUG] Main: Step 6 - Initializing Control Components (TempController)...")
 temp_controller = TemperatureController(settings, relay_control)
 print("[DEBUG] Main: Step 7 - Initializing FGCalculator...")
 
-# 3.5. Initialize FG Calculator (New Step)
+# 3.5. Initialize FG Calculator
 fg_calculator = FGCalculator(settings, api_manager)
 
-# --- CRITICAL FIX: Ensure root is visible and ready BEFORE UI is built ---
 print("[DEBUG] Main: Step 8 - Deiconifying root...")
 root.deiconify()
 print("[DEBUG] Main: Step 9 - Initializing UIManager...")
 
-# 4. Initialize UI (UIManager) (MOVED HERE)
+# 4. Initialize UI
 ui = UIManager(root, settings, temp_controller, api_manager, notification_manager, "Fermentation Vault v1.0", fg_calculator) 
 print("[DEBUG] Main: Step 10 - Finalizing Circular References...")
 
-# 5. Finalize Circular References (MOVED HERE)
-notification_manager.ui = ui # Back-link the UI reference
+# 5. Finalize Circular References
+notification_manager.ui = ui 
 temp_controller.notification_manager = notification_manager
-relay_control.set_logger(ui.log_system_message) # Inject the logger
+relay_control.set_logger(ui.log_system_message) 
 print("[DEBUG] Main: Step 11 - Starting Services...")
 
-# --- Start Services and Main Loop ---
-# temp_controller.start_monitoring()
+# --- CRITICAL FIX: SIGNAL HANDLING FOR TERMINAL CLOSURE ---
+def handle_exit_signal(signum, frame):
+    """
+    Robust signal handler that prioritizes hardware cleanup over logging.
+    Handles SIGHUP (Terminal Close) and SIGTERM (Logout/System Shutdown).
+    """
+    # 1. EXECUTE CLEANUP FIRST (Before attempting to print)
+    # We use a try/except block to ensure one error doesn't stop the next cleanup step
+    try:
+        if 'relay_control' in globals() and relay_control:
+            relay_control.cleanup_gpio()
+    except Exception:
+        pass # Hardware safety failed, nothing else we can do
+
+    # 2. Attempt to log (This might fail if terminal is closed, so we wrap it)
+    try:
+        signal_name = "SIGHUP" if signum == signal.SIGHUP else "SIGTERM"
+        print(f"\n[SHUTDOWN] Received {signal_name}. Hardware cleanup complete.")
+    except (IOError, OSError):
+        pass # Stdout is likely dead (terminal closed), ignore the error
+
+    # 3. FORCE EXIT
+    # We use os._exit() to kill the process immediately. 
+    # sys.exit() throws an exception that Tkinter might catch/block.
+    os._exit(0)
+
+# Register the signals
+signal.signal(signal.SIGHUP, handle_exit_signal)
+signal.signal(signal.SIGTERM, handle_exit_signal)
+# ----------------------------------------------------------
 
 def shutdown_application():
-    # ... (shutdown function body) ...
-    # --- MODIFICATION: Changed log message ---
     print(f"[SHUTDOWN] Controlled shutdown initiated...")
-    # --- END MODIFICATION ---
     
     if notification_manager:
         notification_manager.stop_scheduler()
@@ -115,9 +140,27 @@ def shutdown_application():
     root.quit()
     root.destroy()
     print("[SHUTDOWN] Application closed.")
+    # Explicitly call sys.exit to trigger the finally block below if not already triggered
+    sys.exit(0)
+
 # Bind shutdown function to window close event
 root.protocol("WM_DELETE_WINDOW", shutdown_application)
 
 print("[DEBUG] Main: Step 12 - Starting mainloop()...")
-# Start Tkinter event loop
-root.mainloop()
+
+try:
+    root.mainloop()
+except KeyboardInterrupt:
+    print("\n[SHUTDOWN] KeyboardInterrupt detected (Ctrl+C).")
+except SystemExit:
+    # This catches sys.exit() calls
+    pass
+except Exception as e:
+    print(f"\n[CRITICAL ERROR] Application crashed: {e}")
+finally:
+    # This block handles standard exits (Window close, Ctrl+C)
+    # The signal handler above handles the aggressive kills (Terminal close, Logout)
+    print("[SHUTDOWN] Performing standard exit cleanup...")
+    if 'relay_control' in locals() and relay_control:
+        relay_control.cleanup_gpio()
+    print("[SHUTDOWN] Cleanup complete.")

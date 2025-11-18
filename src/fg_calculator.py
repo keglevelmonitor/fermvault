@@ -1,5 +1,5 @@
 """
-Fermentation Vault App
+fermvault app
 fg_calculator.py
 """
 

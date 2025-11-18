@@ -1,7 +1,8 @@
-# temperature_controller.py (Final Workaround - Direct Data Submission)
+"""
+fermvault app
+temperature_controller.py
+"""
 
-# Removed GPIO imports as they are not used directly in this file.
-# All GPIO operations are handled by relay_control.py
 import requests
 import json
 import threading

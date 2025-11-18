@@ -1,4 +1,7 @@
-# relay_control.py
+"""
+fermvault app
+relay_control.py
+"""
 
 import threading
 import time
@@ -256,3 +259,15 @@ class RelayControl:
              
         # Use the actual calculated target if available, otherwise the primary hold setting
         self.settings.set("beer_setpoint_current", beer_target)
+
+    # --- SAFETY CLEANUP ---
+    def cleanup_gpio(self):
+        """Resets all GPIO pins to safe input state. Called on app exit/crash."""
+        try:
+            # Turn everything off logically first
+            self.turn_off_all_relays()
+            # Tell the kernel to release the pins (resets to INPUT mode)
+            self.gpio.cleanup()
+            print("[RelayControl] GPIO Cleanup complete. Pins reset to INPUT.")
+        except Exception as e:
+            print(f"[RelayControl] Error during GPIO cleanup: {e}")

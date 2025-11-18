@@ -1,5 +1,5 @@
 """
-Fermentation Vault App
+fermvault app
 notification_manager.py
 """
 

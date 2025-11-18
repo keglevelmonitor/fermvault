@@ -1,4 +1,8 @@
-# settings_manager.py
+"""
+fermvault app
+settings_manager.py
+"""
+
 import json
 import os
 import time
