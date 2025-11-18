@@ -28,7 +28,7 @@ echo "You may be asked for your password to install system packages."
 # We use sudo explicitly here. The user runs the script as 'pi', 
 # but this specific command runs as root.
 sudo apt-get update
-sudo apt-get install -y python3-tk python3-dev swig python3-venv
+sudo apt-get install -y python3-tk python3-dev swig python3-venv liblgpio-dev
 
 # --- 3. Setup Python Environment (Clean Install) ---
 echo ""
