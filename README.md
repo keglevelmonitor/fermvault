@@ -2,7 +2,7 @@
 
 The **FermVault app** monitors the temperature of a fermenting product (beer, wine, mead, etc.) inside a refrigerator or freezer. The app turns the refrigerator/freezer on or off, and optionally a heater on or off, to maintain a consistent fermentation temperature. The temperature of the fermenting product can be used as the control-to point. PID regulation ensures accurate temperature control with very little or no overshoot or undershoot of the setpoint temperature. Robust email notifications allow flexible remote monitoring. A "command" mail integration allows remote email control of the FermVault system.
 
-Currently tested only on the Raspberry Pi 3B running Trixie and Bookworm. Should work with RPi4 running the same OS's but not yet tested.
+Currently tested only on the Raspberry Pi 3B running Trixie and Bookworm. Should work with RPi4 or RPi5 running the same OS's but not yet tested.
 
 Please **donate $$** if you use the app. See "Support the app" under the Settings & Info menu.
 
@@ -95,11 +95,8 @@ Installed file structure:
     ├── fermvault_settings.json
     └── pid_tuning_log.csv
     
-System-level dependencies
-(installed via apt outside venv)
-- python3-tk
-- python3-dev
-- swig
+System-level dependencies installed via sudo apt outside of venv:
+sudo apt-get install -y python3-tk python3-dev swig python3-venv liblgpio-dev
 ```
 
 

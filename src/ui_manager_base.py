@@ -12,6 +12,7 @@ import queue
 import os
 from datetime import datetime
 import threading
+from tkinter import scrolledtext
 
 # Define a placeholder for UI Update Queue Handler (needed for the mixin/composed class)
 class MainUIBase:
@@ -728,11 +729,9 @@ class MainUIBase:
         print(f"Action triggered: {choice}")
         
         if choice == "Update API & Temp Data":
-            # Force an API call (uses the ID set by _handle_brew_session_change)
             current_id = self.settings_manager.get("current_brew_session_id")
             if self.notification_manager:
                 self.notification_manager.fetch_api_data_now(current_id) 
-            # Force a single temp read/display update for immediate UI feedback
             self.temp_controller.update_control_logic_and_ui_data()
             
         elif choice == "Send Status Message":
@@ -743,14 +742,13 @@ class MainUIBase:
              self._populate_brew_session_dropdown()
 
         elif choice == "Run FG Calculator":
-             # This must run on the main thread to safely update the UI when done
              if self.notification_manager:
                 self.notification_manager.run_fg_calc_and_update_ui()
         
-        # --- NEW HANDLER ---
+        # --- MODIFIED: Call the new function name ---
         elif choice == "Check for Updates":
-             self._start_update_check_task() # Call the new "check" function
-        # --- END NEW HANDLER ---
+             self._check_for_updates() 
+        # --------------------------------------------
                 
         elif choice == "Reset to Defaults":
              self._confirm_and_reset_defaults()
@@ -1298,132 +1296,178 @@ class MainUIBase:
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred during reset: {e}")
                 
-    def _start_update_check_task(self):
+    def _check_for_updates(self):
         """
-        [NEW] Part 1: Starts the first background thread to check for updates.
+        Opens the update window and starts Phase 1 (Check).
+        Replaces the old immediate-update logic.
         """
-        self.log_system_message("Checking for updates via Git...")
-        # Start the "check" thread
-        threading.Thread(target=self._check_for_updates_task, daemon=True).start()
+        # Calculate base_dir relative to this file (src/)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        script_path = os.path.join(base_dir, "..", "update.sh")
+        
+        if not os.path.exists(script_path):
+            messagebox.showerror("Error", f"Update script not found at:\n{script_path}", parent=self.root)
+            return
 
-    def _check_for_updates_task(self):
+        # 1. Create the Log Window
+        status_popup = tk.Toplevel(self.root)
+        status_popup.title("System Update")
+        status_popup.geometry("650x450")
+        status_popup.transient(self.root)
+        status_popup.grab_set()
+        
+        # 2. Text Area for Logging
+        text_area = scrolledtext.ScrolledText(status_popup, wrap=tk.WORD, height=20, width=80)
+        text_area.pack(padx=10, pady=10, fill="both", expand=True)
+        
+        text_area.tag_config("info", foreground="black")
+        text_area.tag_config("success", foreground="green")
+        text_area.tag_config("warning", foreground="#FF8C00") 
+        text_area.tag_config("error", foreground="red")
+        
+        text_area.insert(tk.END, "Initializing update check...\n", "info")
+        text_area.config(state="disabled")
+
+        # 3. Button Frame
+        btn_frame = ttk.Frame(status_popup, padding=(0, 0, 0, 10))
+        btn_frame.pack(fill="x")
+        
+        # Define Buttons (Pack order: Right to Left)
+        
+        # A. Close (Window only)
+        close_btn = ttk.Button(btn_frame, text="Close", state="disabled", command=status_popup.destroy)
+        close_btn.pack(side="right", padx=5)
+        
+        # B. Close App (Shutdown app for restart) - Initially Disabled
+        close_app_btn = ttk.Button(btn_frame, text="Close App (Restart)", state="disabled", 
+                                   command=lambda: [status_popup.destroy(), self._on_closing_ui()])
+        close_app_btn.pack(side="right", padx=5)
+        
+        # C. Install Updates - Initially Disabled
+        install_btn = ttk.Button(btn_frame, text="Install Updates", state="disabled")
+        install_btn.pack(side="right", padx=5)
+
+        # 4. Start Phase 1: The Check
+        threading.Thread(
+            target=self._run_update_check_phase,
+            args=(text_area, install_btn, close_btn, close_app_btn, script_path, status_popup),
+            daemon=True
+        ).start()
+
+    def _safe_log_to_update_window(self, text_widget, message, tag="info"):
+        """Helper to write to the scrolled text widget from a background thread."""
+        def _update():
+            if not text_widget.winfo_exists(): return
+            text_widget.config(state="normal")
+            text_widget.insert(tk.END, message + "\n", tag)
+            text_widget.see(tk.END)
+            text_widget.config(state="disabled")
+        self.root.after(0, _update)
+
+    def _run_update_check_phase(self, text_widget, install_btn, close_btn, close_app_btn, script_path, popup):
         """
-        [NEW] Part 2: Background thread that runs 'git fetch' and 'git status'.
-        This thread does NOT show popups. It calls _show_update_dialog on the main thread.
+        Phase 1: Runs git fetch/status to see if updates are needed.
         """
-        import subprocess
+        self._safe_log_to_update_window(text_widget, "--- PHASE 1: CHECKING FOR UPDATES ---", "info")
+        
+        # Project dir is one level up from src
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        project_dir = os.path.dirname(base_dir)
         
         try:
-            # Get the path to the directory containing the project (where .git is)
-            project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            
-            # 1. Fetch the latest info from the remote
+            # Step A: Git Fetch
+            self._safe_log_to_update_window(text_widget, "> git fetch origin", "info")
             subprocess.run(
-                ['git', 'fetch'], 
-                cwd=project_dir, 
-                check=True, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE,
-                text=True
+                ['git', 'fetch', 'origin'], 
+                cwd=project_dir, check=True, 
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
             
-            # 2. Check for differences (local branch vs remote tracking branch)
+            # Step B: Check Status
+            self._safe_log_to_update_window(text_widget, "> git status -uno", "info")
             result = subprocess.run(
                 ['git', 'status', '-uno'], 
-                cwd=project_dir, 
-                check=True, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE,
-                text=True
+                cwd=project_dir, check=True, 
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
             
-            status_output = result.stdout.lower()
+            output = result.stdout
+            self._safe_log_to_update_window(text_widget, output, "info")
             
-            # 3. Determine the status
-            status = "error"
-            if "up to date" in status_output:
-                status = "up to date"
-            elif "can be fast-forwarded" in status_output or "behind" in status_output:
-                status = "behind"
-            elif "your branch is ahead" in status_output:
-                status = "ahead"
+            # Step C: Analyze Result
+            if "Your branch is behind" in output:
+                self._safe_log_to_update_window(text_widget, "\n[!] UPDATE AVAILABLE", "success")
+                self._safe_log_to_update_window(text_widget, "Click 'Install Updates' to proceed.", "info")
+                
+                # Enable Install Button via main thread
+                def _enable_install():
+                    if install_btn.winfo_exists():
+                        install_btn.config(state="normal", 
+                            command=lambda: self._start_install_phase(text_widget, install_btn, close_btn, close_app_btn, script_path))
+                    if close_btn.winfo_exists():
+                        close_btn.config(state="normal")
+                self.root.after(0, _enable_install)
+                
+            elif "Your branch is up to date" in output:
+                self._safe_log_to_update_window(text_widget, "\n[OK] System is up to date.", "success")
+                self.root.after(0, lambda: close_btn.config(state="normal"))
+                
+            else:
+                self._safe_log_to_update_window(text_widget, "\n[?] Status Unclear. Please check logs.", "warning")
+                self.root.after(0, lambda: close_btn.config(state="normal"))
 
-            # 4. Call the UI function on the main thread to show the result
-            self.root.after(0, lambda: self._show_update_dialog(status))
-
-        except subprocess.CalledProcessError as e:
-            self.log_system_message(f"ERROR: Git command failed. Output: {e.stderr.strip()}")
-            self.root.after(0, lambda: self._show_update_dialog("error"))
-        except FileNotFoundError:
-            self.log_system_message("ERROR: Git executable not found. Ensure Git is installed.")
-            self.root.after(0, lambda: self._show_update_dialog("error"))
         except Exception as e:
-            self.log_system_message(f"Unexpected error during update check: {e}")
-            self.root.after(0, lambda: self._show_update_dialog("error"))
-            
-    def _show_update_dialog(self, status):
-        """
-        [NEW] Part 3: Runs on the main UI thread to show popups based on the check status.
-        If the user confirms, it launches the *second* background thread to perform the pull.
-        """
-        import subprocess # This is needed for the nested _perform_update_task
-        
-        if status == "up to date":
-            self.log_system_message("Application is already up to date.")
-            messagebox.showinfo("No Updates", "Your application is already up to date.")
-        
-        elif status == "behind":
-            # Updates are available, ask the user
-            if messagebox.askyesno("Updates Available", "New updates are available. Do you want to install them now?\n\nThe app must be restarted after updating."):
-                # User clicked "Yes", start the actual update thread
-                self.log_system_message("Update confirmed. Downloading files...")
-                
-                # --- Part 3b: The "Pull" Thread ---
-                def _perform_update_task():
-                    try:
-                        project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                        
-                        # 1. Perform the actual pull
-                        subprocess.run(
-                            ['git', 'pull'], 
-                            cwd=project_dir, 
-                            check=True, 
-                            stdout=subprocess.PIPE, 
-                            stderr=subprocess.PIPE,
-                            text=True
-                        )
-                        
-                        # 2. Get the latest commit message
-                        commit_msg_result = subprocess.run(
-                            ['git', 'log', '-1', '--pretty=%s'], # %s = subject
-                            cwd=project_dir,
-                            check=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True
-                        )
-                        commit_message = commit_msg_result.stdout.strip()
-                        
-                        # 3. Log success and show final popup
-                        log_msg = f"Update SUCCESSFUL. Latest change: '{commit_message}'"
-                        self.log_system_message(log_msg)
-                        self.root.after(0, lambda: messagebox.showinfo("Update Complete", f"{log_msg}\n\nPlease restart the application."))
-                    
-                    except Exception as e:
-                        log_msg = f"Update FAILED during pull: {e}"
-                        self.log_system_message(log_msg)
-                        self.root.after(0, lambda: messagebox.showerror("Update Failed", log_msg))
-                
-                # Start the pull thread
-                threading.Thread(target=_perform_update_task, daemon=True).start()
+            self._safe_log_to_update_window(text_widget, f"\n[ERROR] Check failed: {e}", "error")
+            self.root.after(0, lambda: close_btn.config(state="normal"))
 
-        elif status == "ahead":
-            log_msg = "Local code has been modified. Cannot update automatically. Please run 'git reset --hard' manually."
-            self.log_system_message(log_msg)
-            messagebox.showwarning("Update Error", log_msg)
+    def _start_install_phase(self, text_widget, install_btn, close_btn, close_app_btn, script_path):
+        """Triggered by the Install button. Disables buttons and starts Phase 2."""
+        install_btn.config(state="disabled")
+        close_btn.config(state="disabled")
+        # Close App remains disabled during install
         
-        elif status == "error":
-            log_msg = "An error occurred while checking for updates. Please check the system messages for details."
-            # The specific error was already logged by _check_for_updates_task
-            messagebox.showerror("Update Check Failed", log_msg)
+        threading.Thread(
+            target=self._run_update_install_phase,
+            args=(text_widget, close_btn, close_app_btn, script_path),
+            daemon=True
+        ).start()
+
+    def _run_update_install_phase(self, text_widget, close_btn, close_app_btn, script_path):
+        """
+        Phase 2: Runs the actual update.sh script and streams output.
+        Enables 'Close App' button only on success.
+        """
+        self._safe_log_to_update_window(text_widget, "\n--- PHASE 2: INSTALLING UPDATES ---", "info")
+        
+        try:
+            process = subprocess.Popen(
+                ['sh', script_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, 
+                text=True,
+                encoding='utf-8',
+                bufsize=1,
+                start_new_session=True
+            )
+            
+            for line in iter(process.stdout.readline, ''):
+                self._safe_log_to_update_window(text_widget, line.strip(), "info")
                 
+            process.stdout.close()
+            return_code = process.wait()
+            
+            if return_code == 0:
+                self._safe_log_to_update_window(text_widget, "\n[SUCCESS] Update complete.", "success")
+                self._safe_log_to_update_window(text_widget, "Click 'Close App (Restart)' to finish.", "success")
+                
+                # Enable the Close App button on success
+                self.root.after(0, lambda: close_app_btn.config(state="normal"))
+            else:
+                self._safe_log_to_update_window(text_widget, f"\n[ERROR] Update script failed with code {return_code}", "error")
+
+        except Exception as e:
+             self._safe_log_to_update_window(text_widget, f"\n[ERROR] Failed to run update script: {e}", "error")
+             
+        finally:
+            # Always re-enable the standard close button so user isn't stuck
+            self.root.after(0, lambda: close_btn.config(state="normal"))
