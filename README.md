@@ -83,11 +83,23 @@ Installed file structure:
 │        ├── wiring.gif
 │        ├── support.gif
 │        └── fermenter.png
-│            
+│
+├── venv/
+│   ├── (installed dependencies)
+│   ├── rpi-lgpio
+│   ├── requests
+│   ├── pytz
+│
 ~/fermvault-data/
     ├── fermentation_data.json
     ├── fermvault_settings.json
     └── pid_tuning_log.csv
+    
+System-level dependencies
+(installed via apt outside venv)
+- python3-tk
+- python3-dev
+- swig
 ```
 
 

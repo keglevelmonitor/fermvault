@@ -1,110 +1,120 @@
 #!/bin/bash
 # install.sh
 # Installation script for FermVault application.
-# Corrected for chmod +x executable.
+
+# Stop on any error to prevent partial installs
+set -e
+
+echo "=========================================="
+echo "   FermVault Installer"
+echo "=========================================="
 
 # --- 1. Define Variables ---
-# Get the full path to the directory this script is in (the project root)
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON_EXEC="python3"
-
-# --- ADDED: Define paths for the virtual environment ---
 VENV_DIR="$PROJECT_DIR/venv"
-VENV_PYTHON_EXEC="$VENV_DIR/bin/python" 
-# --- END ADDED ---
-
-# --- MODIFIED: Get the full path to the system python executable ---
-FULL_PYTHON_PATH=$(command -v $PYTHON_EXEC)
-if [ -z "$FULL_PYTHON_PATH" ]; then
-    echo "[FATAL ERROR] Python 3 ($PYTHON_EXEC) not found in PATH."
-    exit 1
-fi
-# --- END MODIFIED ---
-
+VENV_PYTHON_EXEC="$VENV_DIR/bin/python"
 DESKTOP_FILE_TEMPLATE="$PROJECT_DIR/fermvault.desktop"
 INSTALL_LOCATION="$HOME/.local/share/applications/fermvault.desktop"
 DATA_DIR="$HOME/fermvault-data"
 
-echo "--- FermVault Installation Script ---"
-echo "Project path detected: $PROJECT_DIR"
+echo "Project path: $PROJECT_DIR"
 
-# --- 2. Install Python Dependencies (MODIFIED) ---
-# Check for python3
-if command -v $PYTHON_EXEC &>/dev/null; then
-    
-    # --- ADDED: Create the virtual environment ---
-    echo "Creating Python virtual environment at $VENV_DIR..."
-    $PYTHON_EXEC -m venv "$VENV_DIR"
-    
-    if [ $? -ne 0 ]; then
-        echo "[FATAL ERROR] Failed to create virtual environment."
-        echo "You may need to install the 'python3-venv' package."
-        echo "Try running: sudo apt install python3-venv"
-        exit 1
-    fi
-    # --- END ADDED ---
+# --- 2. Install System Dependencies (Requires Sudo) ---
+echo ""
+echo "--- [Step 1/5] Checking System Dependencies ---"
+echo "You may be asked for your password to install system packages."
 
-    echo "Installing Python dependencies into virtual environment..."
-    
-    # --- MODIFIED: Install packages using the venv's pip ---
-    # We call the python executable from the venv directly.
-    # The --user flag is no longer needed.
-    "$VENV_PYTHON_EXEC" -m pip install -r "$PROJECT_DIR/requirements.txt"
-    
-    # Check if pip installation succeeded
-    if [ $? -ne 0 ]; then
-        echo "[FATAL ERROR] Dependency installation failed. Check internet connection or requirements.txt."
-        exit 1
-    fi
-else
-    echo "[FATAL ERROR] Python 3 not found. Please install Python 3 and try again."
+# We use sudo explicitly here. The user runs the script as 'pi', 
+# but this specific command runs as root.
+sudo apt-get update
+sudo apt-get install -y python3-tk python3-dev swig python3-venv
+
+# --- 3. Setup Python Environment (Clean Install) ---
+echo ""
+echo "--- [Step 2/5] Setting up Virtual Environment ---"
+
+# CLEANUP: Delete existing venv to ensure a clean slate
+if [ -d "$VENV_DIR" ]; then
+    echo "Removing old virtual environment for a clean install..."
+    rm -rf "$VENV_DIR"
+fi
+
+echo "Creating new Python virtual environment at $VENV_DIR..."
+$PYTHON_EXEC -m venv "$VENV_DIR"
+
+if [ $? -ne 0 ]; then
+    echo "[FATAL ERROR] Failed to create virtual environment."
     exit 1
 fi
 
-# --- 3. Create User Data Directory (The Fix for Path Issues) ---
+# --- 4. Install Python Libraries ---
+echo ""
+echo "--- [Step 3/5] Installing Python Libraries ---"
+
+# Verify requirements.txt exists
+if [ ! -f "$PROJECT_DIR/requirements.txt" ]; then
+    echo "[FATAL ERROR] requirements.txt not found in $PROJECT_DIR."
+    exit 1
+fi
+
+# Install using the pip INSIDE the virtual environment
+"$VENV_PYTHON_EXEC" -m pip install --upgrade pip
+"$VENV_PYTHON_EXEC" -m pip install -r "$PROJECT_DIR/requirements.txt"
+
+if [ $? -ne 0 ]; then
+    echo "[FATAL ERROR] Dependency installation failed."
+    exit 1
+fi
+
+# --- 5. Create User Data Directory ---
+echo ""
+echo "--- [Step 4/5] Configuring Data Directory ---"
 if [ ! -d "$DATA_DIR" ]; then
     echo "Creating user data directory: $DATA_DIR"
-    # Create the directory and set safe user permissions (rwx for owner)
     mkdir -p "$DATA_DIR"
     chmod 700 "$DATA_DIR"
 else
-    echo "Data directory already exists. Skipping creation."
+    echo "Data directory already exists ($DATA_DIR). Skipping."
 fi
 
-# --- 4. Install Desktop Shortcut (Creation & Copy) ---
+# --- 6. Install Desktop Shortcut ---
+echo ""
+echo "--- [Step 5/5] Installing Desktop Shortcut ---"
 
 if [ -f "$DESKTOP_FILE_TEMPLATE" ]; then
-    echo "Installing application shortcut to $INSTALL_LOCATION"
-    
-    # 4a. Define the necessary application paths
-    EXEC_PATH="$PROJECT_DIR/src/main.py"
+    # 4a. Define paths
+    # Note: We point to the MAIN.PY in src, but we use the VENV python to execute it.
+    # This ensures the app always uses the isolated libraries.
+    EXEC_CMD="$VENV_PYTHON_EXEC $PROJECT_DIR/src/main.py"
     ICON_PATH="$PROJECT_DIR/src/assets/fermenter.png"
     
-    # 4b. Use sed to replace the generic placeholders in the template with absolute paths
-    # NOTE: We use '|' as the delimiter in sed since the paths contain '/'
-    
-    # 1. Copy the template to a temporary file
+    # 1. Copy to temp
     cp "$DESKTOP_FILE_TEMPLATE" /tmp/fermvault_temp.desktop
     
-    # 2. --- MODIFIED: Update the Exec path to use the SYSTEM python ---
-    sed -i "s|Exec=PLACEHOLDER_EXEC_PATH|Exec=$FULL_PYTHON_PATH $EXEC_PATH|g" /tmp/fermvault_temp.desktop
+    # 2. Update Exec path to use VENV python
+    sed -i "s|Exec=PLACEHOLDER_EXEC_PATH|Exec=$EXEC_CMD|g" /tmp/fermvault_temp.desktop
     
-    # 2.5 --- ADDED: Update the Path (working directory) ---
+    # 3. Update Path (working directory)
     sed -i "s|Path=PLACEHOLDER_PATH|Path=$PROJECT_DIR/src|g" /tmp/fermvault_temp.desktop
 
-    # 3. Update the Icon path
+    # 4. Update Icon path
     sed -i "s|Icon=PLACEHOLDER_ICON_PATH|Icon=$ICON_PATH|g" /tmp/fermvault_temp.desktop
     
-    # 4. Copy the finalized file to the user's application menu directory
+    # 5. Move to user applications folder
     mkdir -p "$HOME/.local/share/applications"
     mv /tmp/fermvault_temp.desktop "$INSTALL_LOCATION"
     
-    # 5. Make the desktop entry executable
+    # 6. Make executable
     chmod +x "$INSTALL_LOCATION"
     
-    echo "Shortcut installed. Look for 'Fermentation Vault' in your application menu."
+    echo "Shortcut installed to: $INSTALL_LOCATION"
 else
-    echo "[WARNING] fermvault.desktop template not found. Skipping shortcut installation."
+    echo "[WARNING] fermvault.desktop template not found. Skipping shortcut."
 fi
 
-echo "--- Installation Complete! Please restart your Raspberry Pi or log out/in to refresh the menu. ---"
+echo ""
+echo "=========================================="
+echo "   Installation Complete!"
+echo "   Please restart your Raspberry Pi."
+echo "=========================================="
