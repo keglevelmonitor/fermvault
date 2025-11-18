@@ -13,6 +13,7 @@ import os
 from datetime import datetime
 import threading
 from tkinter import scrolledtext
+import subprocess
 
 # Define a placeholder for UI Update Queue Handler (needed for the mixin/composed class)
 class MainUIBase:
