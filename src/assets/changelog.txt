@@ -3,7 +3,18 @@ Upcoming enhancements:
 - consider adding wiring diagram or required materials list to readme.md or main somehow
 
 Change Log:
-2025-11-16
+
+Nov 18 2025
+- Refactored venv for modern gpio support (should support Rpi 5)
+- Improved Check for Updates process
+- Clarified and improved menu structure
+
+
+Nov 17 2025
+- README.md created for github repository, including most of the material and information needed
+- Added wiring diagram
+
+Nov 16 2025
 - added wiring diagram and Open button to open it in native RPi Image Viewer
 - intermediary challenge on PID & Tuning popup applies only if a setting/parameter is changed, not just logging
 - added intermediate dialog on action, "Check for updates"
@@ -11,10 +22,10 @@ Change Log:
 - corrected FG message area to be blank (instead of Pending) when API off or API error
 - added About... menu with project explanation, change log, and link to Support this App
 
-2025-11-12
+Nov 12 2025
 - completely restructured app to follow a more standard deployment strategy for RPi
 - wrote README.md to explain new installation process
 
 
-2025 October
+OCT 2025
 - complete refactoring for improved UI including error handling etc.
