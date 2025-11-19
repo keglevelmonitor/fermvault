@@ -369,10 +369,9 @@ class NotificationManager:
         
     def _check_conditional_alerts(self):
         """Checks current conditions against thresholds and sends alerts if needed."""
-        notif_settings = self.settings_manager.get("notification_settings", {})
         
-        # Master switch
-        if not notif_settings.get("conditional_enabled", False):
+        # FIX: Retrieve "conditional_enabled" directly using get()
+        if not self.settings_manager.get("conditional_enabled", False):
             return
 
         now = time.time()
@@ -385,8 +384,9 @@ class NotificationManager:
         # --- A. TEMPERATURE CHECKS ---
         # 1. Ambient Temp
         amb_actual = get_temp(self.settings_manager.get("amb_temp_actual"))
-        amb_min = notif_settings.get("conditional_amb_min")
-        amb_max = notif_settings.get("conditional_amb_max")
+        # FIX: Retrieve thresholds directly
+        amb_min = self.settings_manager.get("conditional_amb_min")
+        amb_max = self.settings_manager.get("conditional_amb_max")
         
         if amb_actual is not None and amb_min is not None and amb_max is not None:
             if amb_actual < amb_min or amb_actual > amb_max:
@@ -397,8 +397,9 @@ class NotificationManager:
 
         # 2. Beer Temp
         beer_actual = get_temp(self.settings_manager.get("beer_temp_actual"))
-        beer_min = notif_settings.get("conditional_beer_min")
-        beer_max = notif_settings.get("conditional_beer_max")
+        # FIX: Retrieve thresholds directly
+        beer_min = self.settings_manager.get("conditional_beer_min")
+        beer_max = self.settings_manager.get("conditional_beer_max")
         
         if beer_actual is not None and beer_min is not None and beer_max is not None:
             if beer_actual < beer_min or beer_actual > beer_max:
@@ -411,21 +412,24 @@ class NotificationManager:
         error_msg = self.settings_manager.get("sensor_error_message", "")
         
         # Ambient Sensor Lost
-        if notif_settings.get("conditional_amb_sensor_lost", False):
+        # FIX: Retrieve setting directly
+        if self.settings_manager.get("conditional_amb_sensor_lost", False):
             if "Ambient Sensor" in error_msg:
                 if now - self._alert_cooldowns["sensor_amb"] > self.ALERT_COOLDOWN_SECONDS:
                     if self._send_alert_email("Sensor Failure", f"Critical: {error_msg}"):
                         self._alert_cooldowns["sensor_amb"] = now
 
         # Beer Sensor Lost
-        if notif_settings.get("conditional_beer_sensor_lost", False):
+        # FIX: Retrieve setting directly
+        if self.settings_manager.get("conditional_beer_sensor_lost", False):
             if "Beer Sensor" in error_msg:
                 if now - self._alert_cooldowns["sensor_beer"] > self.ALERT_COOLDOWN_SECONDS:
                     if self._send_alert_email("Sensor Failure", f"Critical: {error_msg}"):
                          self._alert_cooldowns["sensor_beer"] = now
 
         # --- C. FG STABLE CHECK ---
-        if notif_settings.get("conditional_fg_stable", False):
+        # FIX: Retrieve setting directly
+        if self.settings_manager.get("conditional_fg_stable", False):
             fg_status = self.settings_manager.get("fg_status_var", "")
             fg_value = self.settings_manager.get("fg_value_var", "")
             
