@@ -47,7 +47,7 @@ class PopupManager:
         # --- NEW: EULA/Support Popup Variables ---
         self.eula_agreement_var = tk.IntVar(value=0) # 0=unset, 1=agree, 2=disagree
         self.show_eula_checkbox_var = tk.BooleanVar()
-        self.support_qr_image = None # To hold the PhotoImage reference
+        self.support_qr_image = None 
         # --- END NEW ---
         
         # --- NEW: Wiring Diagram Variable ---
@@ -70,12 +70,9 @@ class PopupManager:
         self.fg_tolerance_var = tk.StringVar()
         self.fg_window_size_var = tk.StringVar()
         self.fg_max_outliers_var = tk.StringVar()
-        
-        # --- NEW: Added for API logging toggle ---
         self.api_logging_var = tk.BooleanVar()
-        # --- END NEW ---
         
-        # Compressor Protection (Minutes conversion required for saving)
+        # Compressor Protection
         self.dwell_time_min_var = tk.StringVar()
         self.max_run_time_min_var = tk.StringVar()
         self.fail_safe_shutdown_min_var = tk.StringVar()
@@ -83,12 +80,9 @@ class PopupManager:
         # System Settings (Sensor Assignment)
         self.beer_sensor_var = tk.StringVar()
         self.ambient_sensor_var = tk.StringVar()
-        
-        # --- MODIFICATION: Added var for PID logging ---
         self.pid_logging_var = tk.BooleanVar()
-        # --- END MODIFICATION ---
         
-        # --- NEW: PID & Tuning Variables ---
+        # PID & Tuning Variables
         self.pid_kp_var = tk.StringVar()
         self.pid_ki_var = tk.StringVar()
         self.pid_kd_var = tk.StringVar()
@@ -99,20 +93,29 @@ class PopupManager:
         self.ramp_thermo_deadband_var = tk.StringVar()
         self.ramp_pid_landing_zone_var = tk.StringVar()
         self.crash_pid_envelope_width_var = tk.StringVar()
-        # --- END NEW ---
         
-        # Notification Settings (simplified)
-        self.notif_type_var = tk.StringVar() # Notification Method (Email/Text)
+        # --- Notification Settings ---
+        # Push
+        self.push_enable_var = tk.BooleanVar()
         self.notif_freq_h_var = tk.StringVar()
+        self.push_recipient_var = tk.StringVar()
         
-        self.notif_content_type_var = tk.StringVar() # Notification Type (Status/FG)
-        self.notif_content_options = ["None", "Status", "Final Gravity", "Both"]
-
-        # --- Brew Session Variables (Max 10 inputs) ---
-        self.brew_session_vars = [tk.StringVar() for _ in range(10)]
+        # Conditional (NEW)
+        self.conditional_enable_var = tk.BooleanVar()
+        self.cond_amb_min_var = tk.StringVar()
+        self.cond_amb_max_var = tk.StringVar()
+        self.cond_beer_min_var = tk.StringVar()
+        self.cond_beer_max_var = tk.StringVar()
+        self.cond_fg_stable_var = tk.BooleanVar()
+        self.cond_amb_lost_var = tk.BooleanVar()
+        self.cond_beer_lost_var = tk.BooleanVar()
+        self.cond_temp_unit_label = tk.StringVar(value="F")
         
-        # Status Request Settings (IMAP/SMTP)
+        # Status Request / Email Control
+        self.req_enable_var = tk.BooleanVar()
         self.req_sender_var = tk.StringVar()
+        
+        # RPi Email Configuration (SMTP/IMAP)
         self.req_rpi_email_var = tk.StringVar()
         self.req_rpi_password_var = tk.StringVar()
         self.req_imap_server_var = tk.StringVar()
@@ -120,17 +123,18 @@ class PopupManager:
         self.req_smtp_server_var = tk.StringVar()
         self.req_smtp_port_var = tk.StringVar()
         
-        # --- ADDED FOR SMS POPUP ---
+        # SMS (Legacy/Unused but kept for safety)
         self.sms_number_var = tk.StringVar()
         self.sms_carrier_gateway_var = tk.StringVar()
         
-        # --- MODIFICATION: Split into separate vars ---
-        self.push_enable_var = tk.BooleanVar()
-        self.req_enable_var = tk.BooleanVar()
-        self.push_recipient_var = tk.StringVar()
-        # self.req_sender_var is already defined
-        # --- END MODIFICATION ---
+        # Notification Type Legacy (kept for safety)
+        self.notif_type_var = tk.StringVar() 
+        self.notif_content_type_var = tk.StringVar() 
+        self.notif_content_options = ["None", "Status", "Final Gravity", "Both"]
 
+        # --- Brew Session Variables (Max 10 inputs) ---
+        self.brew_session_vars = [tk.StringVar() for _ in range(10)]
+        
     def _center_popup(self, popup, popup_width, popup_height):
         """
         Calculates and sets the geometry to center a popup over the main window.
@@ -472,35 +476,55 @@ class PopupManager:
 
     # --- NOTIFICATION SETTINGS (Push & Request) ---
     def _open_notification_settings_popup(self):
-        # NOTE: Using the combined SMTP configuration for simplicity
-        
         popup = tk.Toplevel(self.root)
-        # popup.withdraw() <-- REMOVED FROM HERE
-        popup.title("Notification Settings"); popup.transient(self.root); popup.grab_set()
+        popup.title("Notification Settings")
+        popup.transient(self.root)
+        popup.grab_set()
         
+        # --- LOAD DATA ---
         push_settings = self.settings_manager.get_all_smtp_settings()
         req_settings = self.settings_manager.get_all_status_request_settings()
         
-        # --- Load Vars from settings ---
+        # --- FIX: Access the raw settings dict directly to get the category ---
+        notif_settings = self.settings_manager.settings.get("notification_settings", {})
+        # --- END FIX ---
         
-        # --- MODIFICATION: Load Push Notification vars ---
+        # 1. Push Vars
         freq_h = self.settings_manager.get("frequency_hours", 24)
         if freq_h == 0 or freq_h == "None":
             self.push_enable_var.set(False)
-            self.notif_freq_h_var.set("Every 24 hours") # Default to 24
+            self.notif_freq_h_var.set("Every 24 hours") # Default for display
         else:
             self.push_enable_var.set(True)
             self.notif_freq_h_var.set(f"Every {freq_h} hours")
         
         self.push_recipient_var.set(push_settings.get("email_recipient", ""))
-        # --- END MODIFICATION ---
         
-        # --- MODIFICATION: Load Email Control vars ---
+        # 2. Conditional Vars
+        self.conditional_enable_var.set(notif_settings.get("conditional_enabled", False))
+        self.cond_fg_stable_var.set(notif_settings.get("conditional_fg_stable", False))
+        self.cond_amb_lost_var.set(notif_settings.get("conditional_amb_sensor_lost", False))
+        self.cond_beer_lost_var.set(notif_settings.get("conditional_beer_sensor_lost", False))
+        
+        # Handle Temperature Conversion for Display
+        control_settings = self.settings_manager.get_all_control_settings()
+        units = control_settings.get('temp_units', 'F')
+        self.cond_temp_unit_label.set(units)
+        
+        def to_display(temp_f):
+            if temp_f is None: return ""
+            return f"{temp_f:.1f}" if units == "F" else f"{((temp_f - 32) * 5/9):.1f}"
+
+        self.cond_amb_min_var.set(to_display(notif_settings.get("conditional_amb_min", 32.0)))
+        self.cond_amb_max_var.set(to_display(notif_settings.get("conditional_amb_max", 85.0)))
+        self.cond_beer_min_var.set(to_display(notif_settings.get("conditional_beer_min", 32.0)))
+        self.cond_beer_max_var.set(to_display(notif_settings.get("conditional_beer_max", 75.0)))
+
+        # 3. Status/Email Control Vars
         self.req_enable_var.set(req_settings.get("enable_status_request", False))
         self.req_sender_var.set(req_settings.get("authorized_sender", ""))
-        # --- END MODIFICATION ---
         
-        # RPi Email Configuration
+        # 4. RPi Config Vars
         self.req_rpi_email_var.set(push_settings.get("server_email", ""))
         self.req_rpi_password_var.set(push_settings.get("server_password", ""))
         self.req_imap_server_var.set(req_settings.get("imap_server", ""))
@@ -508,305 +532,333 @@ class PopupManager:
         self.req_smtp_server_var.set(push_settings.get("smtp_server", ""))
         self.req_smtp_port_var.set(str(push_settings.get("smtp_port", 587)))
 
-        # --- SMS Vars (Loaded but not used in UI) ---
-        self.sms_number_var.set(push_settings.get("sms_number", ""))
-        self.sms_carrier_gateway_var.set(push_settings.get("sms_carrier_gateway", ""))
+        # --- BUILD UI ---
         
-        # Helper for aligned rows
-        def add_row(parent_frame, label_text, string_var, show_char=None, notes=None, is_dropdown=False, options=None, unit_text=None):
-            row_frame = ttk.Frame(parent_frame); row_frame.pack(fill="x", pady=2)
-            ttk.Label(row_frame, text=label_text, width=30, anchor='w').pack(side="left", padx=(5, 5))
-            
-            widget = None # Define widget variable
-            
-            if is_dropdown:
-                widget = ttk.Combobox(row_frame, textvariable=string_var, values=options, state="readonly", width=30)
-            else:
-                widget = ttk.Entry(row_frame, textvariable=string_var, width=30, show=show_char)
-            
-            widget.pack(side="left", fill="x", expand=True) 
-            
-            if unit_text:
-                 ttk.Label(row_frame, text=unit_text).pack(side='right', padx=(5, 0))
-            
-            if notes:
-                notes_label = ttk.Label(parent_frame, text=notes, font=('TkDefaultFont', 8, 'italic'), wraplength=550, justify='left')
-                notes_label.pack(fill="x", padx=(5, 5), pady=(0, 5), anchor="w") 
-                
-            return widget # Return the created widget (Entry or Combobox)
+        # Create Notebook with reduced padding
+        notebook = ttk.Notebook(popup)
+        notebook.pack(expand=True, fill='both', padx=5, pady=5)
 
-        form_frame = ttk.Frame(popup, padding="10"); form_frame.pack(expand=True, fill="both")
+        # Tab 1: Alerts & Controls
+        tab1 = ttk.Frame(notebook, padding=5)
+        notebook.add(tab1, text='Alerts & Controls')
 
-        # --- 1. Push Notifications (Section 1) ---
-        section1_frame = ttk.Frame(form_frame)
-        section1_frame.pack(fill="x", anchor="w", pady=(0, 10))
+        # Tab 2: RPi Email Configuration
+        tab2 = ttk.Frame(notebook, padding=5)
+        notebook.add(tab2, text='RPi Email Configuration')
         
-        ttk.Label(section1_frame, text="Push Notifications", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
+        # --- TAB 1: ALERTS & CONTROLS ---
         
-        self.push_enable_check = ttk.Checkbutton(
-            section1_frame, 
-            text="Enable Push Notifications", 
-            variable=self.push_enable_var
-        )
-        self.push_enable_check.pack(anchor='w', padx=5, pady=(5, 0))
+        # Section A: Outbound Alerts
+        outbound_frame = ttk.LabelFrame(tab1, text="Outbound Alerts (Push & Conditional)", padding=5)
+        outbound_frame.pack(fill='x', pady=(0, 5))
         
-        push_notes = (
-            "When enabled, the app's current status and settings are emailed to the specified "
-            "Recipient on the selected schedule. It is recommended that you use a dedicated "
-            "email account set up exclusively for this app, and enter that account's "
-            "configuration settings below under 'RPi Email Configuration'."
-        )
-        ttk.Label(section1_frame, text=push_notes, font=('TkDefaultFont', 8, 'italic'), wraplength=550, justify='left').pack(anchor='w', fill='x', padx=(25, 5), pady=(0, 5))
+        # 1. Recipient
+        recip_frame = ttk.Frame(outbound_frame)
+        recip_frame.pack(fill='x', pady=2)
+        ttk.Label(recip_frame, text="Recipient Email:", width=20, anchor='w').pack(side='left')
+        self.push_recipient_entry = ttk.Entry(recip_frame, textvariable=self.push_recipient_var, width=35)
+        self.push_recipient_entry.pack(side='left', fill='x', expand=True)
         
-        # --- MODIFICATION: Removed "None" from options ---
+        ttk.Label(outbound_frame, text="(Required if either Push or Conditional notifications are enabled)", 
+                  font=('TkDefaultFont', 8, 'italic')).pack(anchor='w', padx=20, pady=(0, 5))
+        
+        # 2. Push Notifications
+        self.push_enable_check = ttk.Checkbutton(outbound_frame, text="Enable Push Notifications", variable=self.push_enable_var)
+        self.push_enable_check.pack(anchor='w', pady=(0, 2))
+        
+        push_notes = "E.g. Daily status reports sent at a fixed interval."
+        ttk.Label(outbound_frame, text=push_notes, font=('TkDefaultFont', 8, 'italic'), 
+                  wraplength=500).pack(anchor='w', padx=25, pady=(0, 2))
+
+        freq_frame = ttk.Frame(outbound_frame)
+        freq_frame.pack(fill='x', padx=25, pady=(0, 5))
+        ttk.Label(freq_frame, text="Report Frequency:", width=20, anchor='w').pack(side='left')
         freq_options = ["Every 1 hour", "Every 2 hours", "Every 4 hours", "Every 8 hours", "Every 12 hours", "Every 24 hours"]
-        self.notif_freq_dropdown = add_row(section1_frame, "Notification Frequency:", self.notif_freq_h_var, unit_text=None, is_dropdown=True, options=freq_options)
+        self.notif_freq_dropdown = ttk.Combobox(freq_frame, textvariable=self.notif_freq_h_var, values=freq_options, state="readonly", width=20)
+        self.notif_freq_dropdown.pack(side='left')
         
-        self.push_recipient_entry = add_row(section1_frame, "Recipient Email:", self.push_recipient_var, notes=None)
-
-
-        # --- 2. Email Control (Section 2) ---
-        section2_frame = ttk.Frame(form_frame)
-        section2_frame.pack(fill="x", anchor="w", pady=(0, 10))
-
-        ttk.Label(section2_frame, text="Email Control (Status & Commands)", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
-
-        self.req_enable_check = ttk.Checkbutton(
-            section2_frame, 
-            text="Enable Email Control (Status & Commands)", 
-            variable=self.req_enable_var
-        )
-        self.req_enable_check.pack(anchor='w', padx=5, pady=(5, 0))
+        # 3. Conditional Notifications
+        self.cond_enable_check = ttk.Checkbutton(outbound_frame, text="Enable Conditional Notifications", variable=self.conditional_enable_var)
+        self.cond_enable_check.pack(anchor='w', pady=(5, 2))
         
-        # --- MODIFICATION: Use the new user-approved text ---
-        warning_text = (
+        cond_sub_frame = ttk.Frame(outbound_frame)
+        cond_sub_frame.pack(fill='x', padx=25)
+        
+        # Helper for Temp Rows
+        def add_temp_row(parent, label, var_min, var_max):
+            row = ttk.Frame(parent)
+            row.pack(fill='x', pady=1)
+            ttk.Label(row, text=label, width=30, anchor='w').pack(side='left')
+            self.cond_temp_entries.append(ttk.Entry(row, textvariable=var_min, width=6))
+            self.cond_temp_entries[-1].pack(side='left', padx=2)
+            ttk.Label(row, text="-").pack(side='left')
+            self.cond_temp_entries.append(ttk.Entry(row, textvariable=var_max, width=6))
+            self.cond_temp_entries[-1].pack(side='left', padx=2)
+            ttk.Label(row, textvariable=self.cond_temp_unit_label).pack(side='left')
+            
+        self.cond_temp_entries = [] # Store references to enable/disable
+        add_temp_row(cond_sub_frame, "Ambient temp outside the range:", self.cond_amb_min_var, self.cond_amb_max_var)
+        add_temp_row(cond_sub_frame, "Beer temp outside the range:", self.cond_beer_min_var, self.cond_beer_max_var)
+        
+        self.cond_checks = []
+        self.cond_checks.append(ttk.Checkbutton(cond_sub_frame, text="Final Gravity (FG) Stable", variable=self.cond_fg_stable_var))
+        self.cond_checks[-1].pack(anchor='w', pady=1)
+        self.cond_checks.append(ttk.Checkbutton(cond_sub_frame, text="Ambient temp sensor lost", variable=self.cond_amb_lost_var))
+        self.cond_checks[-1].pack(anchor='w', pady=1)
+        self.cond_checks.append(ttk.Checkbutton(cond_sub_frame, text="Beer temp sensor lost", variable=self.cond_beer_lost_var))
+        self.cond_checks[-1].pack(anchor='w', pady=1)
+        
+        # Section B: Inbound Controls
+        inbound_frame = ttk.LabelFrame(tab1, text="Inbound Controls (Status & Commands)", padding=5)
+        inbound_frame.pack(fill='x', pady=5)
+        
+        self.req_enable_check = ttk.Checkbutton(inbound_frame, text="Enable Email Control (Status & Commands)", variable=self.req_enable_var)
+        self.req_enable_check.pack(anchor='w', pady=(0, 2))
+        
+        warning_text_tab1 = (
             "WARNING: When enabled, the app checks the 'RPi Email Configuration' account for new messages "
             "from the Authorized Sender. If new messages exist, the app marks them as 'read', and "
             "processes them for 'Status' or 'Command' actions. Only enable this feature if you are using "
             "a dedicated email account set up exclusively for this app, and enter that email account's "
-            "configuration settings below under 'RPi Email Configuration'."
+            "configuration settings on the 'RPi Email Configuration' tab."
         )
-        # --- END MODIFICATION ---
+        ttk.Label(inbound_frame, text=warning_text_tab1, font=('TkDefaultFont', 8, 'italic'), wraplength=600, justify='left').pack(anchor='w', padx=20, pady=(0, 5))
         
-        ttk.Label(section2_frame, text=warning_text, font=('TkDefaultFont', 8, 'italic'), wraplength=550, justify='left').pack(anchor='w', fill='x', padx=(25, 5), pady=(0, 5))
-
-        self.req_sender_entry = add_row(section2_frame, "Authorized Sender:", self.req_sender_var, notes=None)
-
-
-        # --- 3. RPi Email Configuration (Section 3) ---
-        section3_frame = ttk.Frame(form_frame)
-        section3_frame.pack(fill="x", pady=(10, 5), anchor="w")
+        auth_frame = ttk.Frame(inbound_frame)
+        auth_frame.pack(fill='x', padx=20, pady=(0, 5))
+        ttk.Label(auth_frame, text="Authorized Sender:", width=20, anchor='w').pack(side='left')
+        self.req_sender_entry = ttk.Entry(auth_frame, textvariable=self.req_sender_var, width=35)
+        self.req_sender_entry.pack(side='left', fill='x', expand=True)
         
-        ttk.Label(section3_frame, text="RPi Email Configuration", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
+        # --- TAB 2: RPi CONFIG ---
         
-        # Store widget references for enable/disable
-        self.rpi_email_entry = add_row(section3_frame, "RPi email address:", self.req_rpi_email_var)
-        self.rpi_password_entry = add_row(section3_frame, "RPi email password (2FA pw):", self.req_rpi_password_var, show_char="*", notes=None)
-        self.imap_server_entry = add_row(section3_frame, "IMAP (incoming) server:", self.req_imap_server_var)
-        self.imap_port_entry = add_row(section3_frame, "IMAP (incoming) port:", self.req_imap_port_var)
-        self.smtp_server_entry = add_row(section3_frame, "SMTP (outgoing) server:", self.req_smtp_server_var)
-        self.smtp_port_entry = add_row(section3_frame, "SMTP (outgoing) port:", self.req_smtp_port_var)
+        # Warning Text (Top of Tab 2)
+        warning_text_tab2 = (
+            "WARNING: When Email Control is enabled, the app checks the 'RPi Email Configuration' account for new messages "
+            "from the Authorized Sender. If new messages exist, the app marks them as 'read', and "
+            "processes them for 'Status' or 'Command' actions. Only enable this feature if you are using "
+            "a dedicated email account set up exclusively for this app, and enter that email account's "
+            "configuration settings on the 'RPi Email Configuration' tab."
+        )
+        ttk.Label(tab2, text=warning_text_tab2, font=('TkDefaultFont', 8, 'italic'), wraplength=600, justify='left').pack(anchor='w', pady=(0, 10))
+        
+        def add_cfg_row(parent, label, var, show_char=None):
+            row = ttk.Frame(parent)
+            row.pack(fill='x', pady=4)
+            ttk.Label(row, text=label, width=25, anchor='w').pack(side='left')
+            entry = ttk.Entry(row, textvariable=var, width=30, show=show_char)
+            entry.pack(side='left', fill='x', expand=True)
+            return entry
 
-
-        # --- Buttons ---
+        self.rpi_email_entry = add_cfg_row(tab2, "RPi email address:", self.req_rpi_email_var)
+        self.rpi_password_entry = add_cfg_row(tab2, "RPi email password (2FA pw):", self.req_rpi_password_var, show_char="*")
+        ttk.Separator(tab2, orient='horizontal').pack(fill='x', pady=10)
+        self.smtp_server_entry = add_cfg_row(tab2, "SMTP (outgoing) server:", self.req_smtp_server_var)
+        self.smtp_port_entry = add_cfg_row(tab2, "SMTP (outgoing) port:", self.req_smtp_port_var)
+        ttk.Separator(tab2, orient='horizontal').pack(fill='x', pady=10)
+        self.imap_server_entry = add_cfg_row(tab2, "IMAP (incoming) server:", self.req_imap_server_var)
+        self.imap_port_entry = add_cfg_row(tab2, "IMAP (incoming) port:", self.req_imap_port_var)
+        
+        # --- BUTTONS ---
         btns_frame = ttk.Frame(popup, padding="10"); btns_frame.pack(fill="x", side="bottom")
         ttk.Button(btns_frame, text="Save", command=lambda: self._save_notification_settings(popup)).pack(side="right", padx=5)
         ttk.Button(btns_frame, text="Cancel", command=popup.destroy).pack(side="right")
         
-        # --- MODIFICATION: Add traces to both checkboxes ---
+        # --- TRACES ---
         self.push_enable_var.trace_add("write", self._toggle_email_fields_state)
+        self.conditional_enable_var.trace_add("write", self._toggle_email_fields_state)
         self.req_enable_var.trace_add("write", self._toggle_email_fields_state)
         
-        # Call toggle function to set initial state
         self._toggle_email_fields_state()
-        # --- END MODIFICATION ---
         
-        # --- MODIFICATION: Use dynamic centering ---
+        # Center with reduced size
         popup.update_idletasks()
-        popup_width = 600
-        popup_height = popup.winfo_height()
-        popup.withdraw() # Hide window
+        popup_width = 650
+        popup_height = 550
+        popup.withdraw()
         self._center_popup(popup, popup_width, popup_height)
-        # --- END MODIFICATION ---
         
     def _save_notification_settings(self, popup):
         try:
-            # 1. Input Parsing and Validation
-            push_port_str = self.req_smtp_port_var.get()
-            imap_port_str = self.req_imap_port_var.get()
-            
-            # --- MODIFICATION: Only validate ports if they are enabled ---
+            # 1. Input Parsing and Validation (Ports)
             push_enabled = self.push_enable_var.get()
+            cond_enabled = self.conditional_enable_var.get()
             req_enabled = self.req_enable_var.get()
             
             push_port = 0
             imap_port = 0
-
-            # If any service is enabled, we need the SMTP ports
-            if push_enabled or req_enabled:
-                push_port = self._to_int_or_error(push_port_str)
+            
+            # SMTP Port needed if ANY feature is enabled
+            if push_enabled or cond_enabled or req_enabled:
+                push_port = self._to_int_or_error(self.req_smtp_port_var.get())
                 if push_port <= 0 or push_port > 65535:
                      messagebox.showerror("Input Error", "SMTP Port must be 1-65535.", parent=popup); return
             
-            # Only if Email Control is enabled do we need the IMAP port
+            # IMAP Port needed only if Request is enabled
             if req_enabled:
-                imap_port = self._to_int_or_error(imap_port_str)
+                imap_port = self._to_int_or_error(self.req_imap_port_var.get())
                 if imap_port <= 0 or imap_port > 65535:
                      messagebox.showerror("Input Error", "IMAP Port must be 1-65535.", parent=popup); return
-            # --- END MODIFICATION ---
 
-            # --- MODIFICATION: Get new frequency logic ---
+            # 2. Push Logic
             notif_freq_h = 0
             freq_str = ""
             if push_enabled:
                 freq_str = self.notif_freq_h_var.get()
-                notif_freq_h = self._to_int_or_error(freq_str.split()[1]) # e.g., "Every 4 hours" -> "4"
-            # --- END MODIFICATION ---
+                # Split string "Every 4 hours" -> "4"
+                notif_freq_h = self._to_int_or_error(freq_str.split()[1]) 
 
-            # Define helper to get old values
-            def _get_old_val(key, default=""):
-                if key == "frequency_hours":
-                    return int(self.settings_manager.get(key, default=24))
-                return self.settings_manager.get(key, default=default)
+            # 3. Conditional Logic & Unit Conversion
+            # Settings are stored in Fahrenheit. UI displays user preference.
+            units = self.cond_temp_unit_label.get() # Get display units "F" or "C"
+            
+            def from_display(val_str):
+                try:
+                    val = float(val_str)
+                    if units == "F": return val
+                    else: return (val * 9/5) + 32 # Convert C to F
+                except ValueError:
+                    return 0.0 # Default fallback
 
-            # --- OLD VALUES FOR COMPARISON ---
-            old_freq = _get_old_val("frequency_hours", default=24)
-            old_smtp_settings = self.settings_manager.get_all_smtp_settings()
+            # --- CAPTURE OLD STATE FOR LOGGING ---
+            # We need these comparisons to generate specific log messages
+            old_freq = int(self.settings_manager.get("frequency_hours", 24))
+            
+            old_notif_settings = self.settings_manager.settings.get('notification_settings', {})
+            old_cond_enabled = old_notif_settings.get("conditional_enabled", False)
+            
             old_req_settings = self.settings_manager.get_all_status_request_settings()
+            old_req_enabled = old_req_settings.get("enable_status_request", False)
+
+            # 4. Save Settings
             
-            # 2. Save All Settings
-            
-            # A. Save Notification Settings (Frequency only)
+            # A. Push Frequency
             self.settings_manager.set("frequency_hours", notif_freq_h)
             
-            # B. Prepare & Save SMTP Settings
+            # B. Notification Settings (New Conditional Fields)
+            notif_settings = self.settings_manager.settings.get('notification_settings', {})
+            notif_settings.update({
+                "conditional_enabled": cond_enabled,
+                "conditional_amb_min": from_display(self.cond_amb_min_var.get()),
+                "conditional_amb_max": from_display(self.cond_amb_max_var.get()),
+                "conditional_beer_min": from_display(self.cond_beer_min_var.get()),
+                "conditional_beer_max": from_display(self.cond_beer_max_var.get()),
+                "conditional_fg_stable": self.cond_fg_stable_var.get(),
+                "conditional_amb_sensor_lost": self.cond_amb_lost_var.get(),
+                "conditional_beer_sensor_lost": self.cond_beer_lost_var.get()
+            })
+            self.settings_manager.settings['notification_settings'] = notif_settings
+            
+            # C. SMTP Settings (Shared)
             new_smtp_settings = {
                 "server_email": self.req_rpi_email_var.get().strip(),
                 "server_password": self.req_rpi_password_var.get(),
-                "email_recipient": self.push_recipient_var.get().strip(), # <-- Use new push var
+                "email_recipient": self.push_recipient_var.get().strip(),
                 "smtp_server": self.req_smtp_server_var.get().strip(),
-                "smtp_port": push_port if (push_enabled or req_enabled) else old_smtp_settings.get('smtp_port', 587),
+                "smtp_port": push_port if (push_enabled or cond_enabled or req_enabled) else 587,
             }
             self.settings_manager.settings['smtp_settings'].update(new_smtp_settings) 
 
-            # C. Prepare & Save Status Request Settings
+            # D. Status Request Settings
             new_req_settings = {
-                "enable_status_request": self.req_enable_var.get(),
-                "authorized_sender": self.req_sender_var.get().strip(), # <-- Use req sender var
+                "enable_status_request": req_enabled,
+                "authorized_sender": self.req_sender_var.get().strip(),
                 "rpi_email_address": self.req_rpi_email_var.get().strip(),
                 "rpi_email_password": self.req_rpi_password_var.get(),
                 "imap_server": self.req_imap_server_var.get().strip(),
-                "imap_port": imap_port if req_enabled else old_req_settings.get('imap_port', 993),
+                "imap_port": imap_port if req_enabled else 993,
             }
             self.settings_manager.save_status_request_settings(new_req_settings)
             
-            # D. Save all changes to disk
+            # Save to disk
             self.settings_manager._save_all_settings()
             
-            # 3. Generate Descriptive Log Message
-            log_parts = []
-            
-            # --- MODIFICATION: Check for Push Notification change (ON/OFF) ---
-            if push_enabled and (old_freq == 0 or old_freq == "None"):
-                log_parts.append(f"Push Notifications enabled (Frequency: {freq_str}).")
-            elif not push_enabled and (old_freq > 0 and old_freq != "None"):
-                log_parts.append("Push Notifications disabled.")
-            elif push_enabled and notif_freq_h != old_freq:
-                 log_parts.append(f"Push Frequency changed to {freq_str}.")
-            
-            if push_enabled and new_smtp_settings['email_recipient'] != old_smtp_settings['email_recipient']:
-                log_parts.append("Push Recipient updated.")
-            # --- END MODIFICATION ---
-            
-            # --- Check for Email Control change ---
-            new_enable_state = new_req_settings["enable_status_request"]
-            old_enable_state = old_req_settings.get("enable_status_request", False)
-            if new_enable_state != old_enable_state:
-                log_parts.append(f"Email Control {'enabled' if new_enable_state else 'disabled'}.")
-                
-            if new_enable_state and new_req_settings['authorized_sender'] != old_req_settings['authorized_sender']:
-                log_parts.append("Authorized Sender updated.")
-            
-            # --- Check RPi Config fields (only if one of the services is enabled) ---
-            if push_enabled or req_enabled:
-                if new_smtp_settings['server_email'] != old_smtp_settings['server_email']:
-                    log_parts.append("RPi Email Address updated.")
-                if new_smtp_settings['smtp_port'] != old_smtp_settings['smtp_port']:
-                     log_parts.append(f"SMTP Port set to {new_smtp_settings['smtp_port']}.")
-            
-            if req_enabled:
-                if new_req_settings['imap_port'] != old_req_settings['imap_port']:
-                     log_parts.append(f"IMAP Port set to {new_req_settings['imap_port']}.")
-            
-            # Construct the final message
-            if log_parts:
-                message = "Notification settings saved. " + " ".join(log_parts)
-            else:
-                message = "Notification settings saved. (No changes detected.)"
+            # 5. Logging
+            self.ui.log_system_message("Notification settings saved.")
 
-            # Pass old and new freq to the scheduler
-            self.notification_manager.force_reschedule(old_freq, notif_freq_h)
+            # Log Push Status Changes
+            if push_enabled and old_freq == 0:
+                self.ui.log_system_message(f"Push notifications enabled (Frequency: {freq_str}).")
+            elif not push_enabled and old_freq != 0:
+                self.ui.log_system_message("Push notifications disabled.")
+            elif push_enabled and notif_freq_h != old_freq:
+                 self.ui.log_system_message(f"Push Frequency changed to {freq_str}.")
             
-            self.ui.log_system_message(message)
+            # Log Conditional Status Changes (NEW)
+            if cond_enabled and not old_cond_enabled:
+                self.ui.log_system_message("Conditional notifications enabled.")
+            elif not cond_enabled and old_cond_enabled:
+                self.ui.log_system_message("Conditional notifications disabled.")
+
+            # Log Email Control Status Changes
+            if req_enabled and not old_req_enabled:
+                self.ui.log_system_message("Email Control (Status & Commands) enabled.")
+            elif not req_enabled and old_req_enabled:
+                self.ui.log_system_message("Email Control (Status & Commands) disabled.")
+
+            # Reschedule services
+            self.notification_manager.force_reschedule(old_freq, notif_freq_h)
             
             popup.destroy()
             self.root.update()
             
         except ValueError as e:
-            messagebox.showerror("Input Error", f"Port or frequency must be valid whole numbers. ({e})", parent=popup)
+            messagebox.showerror("Input Error", f"Numeric field error: {e}", parent=popup)
             
     def _toggle_email_fields_state(self, *args):
         """
-        Enables or disables all fields based on the state of the two master checkboxes.
+        Enables or disables all fields based on the state of the three master checkboxes.
         """
         try:
             push_enabled = self.push_enable_var.get()
+            cond_enabled = self.conditional_enable_var.get()
             req_enabled = self.req_enable_var.get()
 
-            # --- 1. Toggle Push Notification Section ---
-            push_section_state = 'normal' if push_enabled else 'disabled'
-            if hasattr(self, 'notif_freq_dropdown'):
-                self.notif_freq_dropdown.config(state=push_section_state)
+            # 1. Outbound Alerts Section (Shared Recipient)
+            # Enabled if EITHER push or conditional is ON
+            outbound_active = push_enabled or cond_enabled
+            outbound_state = 'normal' if outbound_active else 'disabled'
+            
             if hasattr(self, 'push_recipient_entry'):
-                self.push_recipient_entry.config(state=push_section_state)
+                self.push_recipient_entry.config(state=outbound_state)
 
-            # --- 2. Toggle Email Control Section ---
-            req_section_state = 'normal' if req_enabled else 'disabled'
-            if hasattr(self, 'req_sender_entry'):
-                self.req_sender_entry.config(state=req_section_state)
-
-            # --- 3. Toggle RPi Email Configuration Section (3-state logic) ---
-            smtp_state = 'disabled'
-            imap_state = 'disabled'
-
-            if req_enabled:
-                # If Email Control is ON, all 6 fields are enabled
-                smtp_state = 'normal'
-                imap_state = 'normal'
-            elif push_enabled:
-                # If Push is ON (and Control is OFF), only SMTP fields are enabled
-                smtp_state = 'normal'
-                imap_state = 'disabled'
-            # else: (both OFF) all 6 fields remain 'disabled'
-
-            # Apply SMTP states (4 fields)
-            if hasattr(self, 'rpi_email_entry'):
-                self.rpi_email_entry.config(state=smtp_state)
-            if hasattr(self, 'rpi_password_entry'):
-                self.rpi_password_entry.config(state=smtp_state)
-            if hasattr(self, 'smtp_server_entry'):
-                self.smtp_server_entry.config(state=smtp_state)
-            if hasattr(self, 'smtp_port_entry'):
-                self.smtp_port_entry.config(state=smtp_state)
+            # 2. Push Specific
+            push_state = 'normal' if push_enabled else 'disabled'
+            if hasattr(self, 'notif_freq_dropdown'):
+                self.notif_freq_dropdown.config(state=push_state)
                 
-            # Apply IMAP states (2 fields)
-            if hasattr(self, 'imap_server_entry'):
-                self.imap_server_entry.config(state=imap_state)
-            if hasattr(self, 'imap_port_entry'):
-                self.imap_port_entry.config(state=imap_state)
+            # 3. Conditional Specific
+            cond_state = 'normal' if cond_enabled else 'disabled'
+            if hasattr(self, 'cond_temp_entries'):
+                for entry in self.cond_temp_entries:
+                    entry.config(state=cond_state)
+            if hasattr(self, 'cond_checks'):
+                for chk in self.cond_checks:
+                    chk.config(state=cond_state)
+
+            # 4. Inbound Control Section
+            req_state = 'normal' if req_enabled else 'disabled'
+            if hasattr(self, 'req_sender_entry'):
+                self.req_sender_entry.config(state=req_state)
+
+            # 5. RPi Config Tab (Dependencies)
+            
+            # SMTP/Creds needed if ANY feature is ON
+            smtp_needed = push_enabled or cond_enabled or req_enabled
+            smtp_state = 'normal' if smtp_needed else 'disabled'
+            
+            if hasattr(self, 'rpi_email_entry'): self.rpi_email_entry.config(state=smtp_state)
+            if hasattr(self, 'rpi_password_entry'): self.rpi_password_entry.config(state=smtp_state)
+            if hasattr(self, 'smtp_server_entry'): self.smtp_server_entry.config(state=smtp_state)
+            if hasattr(self, 'smtp_port_entry'): self.smtp_port_entry.config(state=smtp_state)
+            
+            # IMAP needed ONLY if Request is ON
+            imap_state = 'normal' if req_enabled else 'disabled'
+            
+            if hasattr(self, 'imap_server_entry'): self.imap_server_entry.config(state=imap_state)
+            if hasattr(self, 'imap_port_entry'): self.imap_port_entry.config(state=imap_state)
 
         except Exception as e:
-            # This can fail if the widgets haven't been created yet
             print(f"UI Info: State toggle failed (widget not ready?): {e}")
 
     # --- API SETTINGS ---

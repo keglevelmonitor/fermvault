@@ -42,6 +42,20 @@ class NotificationManager:
         
         self._last_error_time = {"push": 0.0, "request": 0.0, "fg": 0.0}
 
+        # --- NEW: Conditional Alert State Tracking ---
+        self.last_conditional_check_time = 0
+        self._fg_alert_sent = False # Latch for FG Stable alert
+        
+        # Cooldown trackers (timestamp of last email sent)
+        self._alert_cooldowns = {
+            "ambient_temp": 0.0,
+            "beer_temp": 0.0,
+            "sensor_amb": 0.0,
+            "sensor_beer": 0.0
+        }
+        self.ALERT_COOLDOWN_SECONDS = 7200 # 2 Hours
+        # --- END NEW ---
+
     def _get_command_help_text(self):
         """Returns a list of strings for the email command help text."""
         return [
@@ -225,6 +239,15 @@ class NotificationManager:
                 # Set timer normally for when it's turned on later
                 self.last_notification_sent_time = time.time()
             # --- END MODIFICATION ---
+
+            # --- NEW: Log Conditional Notification Status at Startup ---
+            cond_enabled = self.settings_manager.get("conditional_enabled", False)
+            if self.ui:
+                if cond_enabled:
+                    self.ui.log_system_message("Conditional notifications enabled.")
+                else:
+                    self.ui.log_system_message("Conditional notifications disabled.")
+            # --- END NEW ---
             
             # --- MODIFICATION: Set all timers ---
             self.last_api_fetch_time = time.time()
@@ -304,7 +327,7 @@ class NotificationManager:
         while self._scheduler_running:
             now = time.time()
             
-            # --- 1. API DATA FETCH LOGIC (DECOUPLED) ---
+            # --- 1. API DATA FETCH LOGIC ---
             api_freq_s = self.settings_manager.get("api_call_frequency_s", 1200)
             if self.settings_manager.get("active_api_service") != "OFF" and api_freq_s > 0:
                 if now >= self.last_api_fetch_time + api_freq_s:
@@ -313,34 +336,139 @@ class NotificationManager:
                     self.fetch_api_data_now(current_id, is_scheduled=True)
                     self.last_api_fetch_time = now
             
-            # --- 2. FG CALCULATION LOGIC (DECOUPLED) ---
+            # --- 2. FG CALCULATION LOGIC ---
             fg_freq_h = self.settings_manager.get("fg_check_frequency_h", 24)
-            fg_freq_s = fg_freq_h * 3600 # Convert hours to seconds
+            fg_freq_s = fg_freq_h * 3600 
             if self.settings_manager.get("active_api_service") != "OFF" and fg_freq_s > 0:
                 if now >= self.last_fg_calc_time + fg_freq_s:
                     print(f"[NotificationManager] Scheduled time reached. Running FG Calc.")
                     self._run_scheduled_fg_calc()
                     self.last_fg_calc_time = now
 
-            # --- 3. PUSH NOTIFICATION LOGIC (DECOUPLED) ---
+            # --- 3. PUSH NOTIFICATION LOGIC ---
             notif_freq_h = self.settings_manager.get("frequency_hours", 0)
             notif_freq_s = self._get_interval_seconds(notif_freq_h)
             
             if notif_freq_s > 0:
                 if now >= self.last_notification_sent_time + notif_freq_s:
                     print(f"[NotificationManager] Scheduled time reached. Sending status report.")
-                    # Note: API/FG data is now fetched on its own timer,
-                    # so the email will send whatever the *latest* data is.
                     if self._send_status_message(is_scheduled=True):
                         self.last_notification_sent_time = now
+
+            # --- 4. NEW: CONDITIONAL ALERT LOGIC (Every 60 seconds) ---
+            if now >= self.last_conditional_check_time + 60:
+                self._check_conditional_alerts()
+                self.last_conditional_check_time = now
+            # ----------------------------------------------------------
             
-            # --- 4. WAIT LOGIC (SIMPLIFIED) ---
-            # Poll every 10 seconds to check timers
+            # --- 5. WAIT LOGIC ---
             self._scheduler_event.wait(timeout=10.0) 
             
             if not self._scheduler_running: break
         print("[NotificationManager] Scheduler loop stopped.")
+        
+    def _check_conditional_alerts(self):
+        """Checks current conditions against thresholds and sends alerts if needed."""
+        notif_settings = self.settings_manager.get("notification_settings", {})
+        
+        # Master switch
+        if not notif_settings.get("conditional_enabled", False):
+            return
 
+        now = time.time()
+        
+        # Helper to parse temps safely (returns float or None)
+        def get_temp(val):
+            try: return float(val)
+            except (ValueError, TypeError): return None
+
+        # --- A. TEMPERATURE CHECKS ---
+        # 1. Ambient Temp
+        amb_actual = get_temp(self.settings_manager.get("amb_temp_actual"))
+        amb_min = notif_settings.get("conditional_amb_min")
+        amb_max = notif_settings.get("conditional_amb_max")
+        
+        if amb_actual is not None and amb_min is not None and amb_max is not None:
+            if amb_actual < amb_min or amb_actual > amb_max:
+                if now - self._alert_cooldowns["ambient_temp"] > self.ALERT_COOLDOWN_SECONDS:
+                    msg = f"Ambient Temp ({amb_actual:.1f}F) is outside range ({amb_min:.1f}-{amb_max:.1f}F)."
+                    if self._send_alert_email("Ambient Temp Alert", msg):
+                        self._alert_cooldowns["ambient_temp"] = now
+
+        # 2. Beer Temp
+        beer_actual = get_temp(self.settings_manager.get("beer_temp_actual"))
+        beer_min = notif_settings.get("conditional_beer_min")
+        beer_max = notif_settings.get("conditional_beer_max")
+        
+        if beer_actual is not None and beer_min is not None and beer_max is not None:
+            if beer_actual < beer_min or beer_actual > beer_max:
+                if now - self._alert_cooldowns["beer_temp"] > self.ALERT_COOLDOWN_SECONDS:
+                    msg = f"Beer Temp ({beer_actual:.1f}F) is outside range ({beer_min:.1f}-{beer_max:.1f}F)."
+                    if self._send_alert_email("Beer Temp Alert", msg):
+                        self._alert_cooldowns["beer_temp"] = now
+
+        # --- B. SENSOR ERROR CHECKS ---
+        error_msg = self.settings_manager.get("sensor_error_message", "")
+        
+        # Ambient Sensor Lost
+        if notif_settings.get("conditional_amb_sensor_lost", False):
+            if "Ambient Sensor" in error_msg:
+                if now - self._alert_cooldowns["sensor_amb"] > self.ALERT_COOLDOWN_SECONDS:
+                    if self._send_alert_email("Sensor Failure", f"Critical: {error_msg}"):
+                        self._alert_cooldowns["sensor_amb"] = now
+
+        # Beer Sensor Lost
+        if notif_settings.get("conditional_beer_sensor_lost", False):
+            if "Beer Sensor" in error_msg:
+                if now - self._alert_cooldowns["sensor_beer"] > self.ALERT_COOLDOWN_SECONDS:
+                    if self._send_alert_email("Sensor Failure", f"Critical: {error_msg}"):
+                         self._alert_cooldowns["sensor_beer"] = now
+
+        # --- C. FG STABLE CHECK ---
+        if notif_settings.get("conditional_fg_stable", False):
+            fg_status = self.settings_manager.get("fg_status_var", "")
+            fg_value = self.settings_manager.get("fg_value_var", "")
+            
+            if fg_status == "Stable":
+                if not self._fg_alert_sent:
+                    # Send One-Time Alert
+                    msg = f"Fermentation Gravity is STABLE at {fg_value}."
+                    if self._send_alert_email("Fermentation Complete", msg):
+                        self._fg_alert_sent = True # Latch
+                        
+            elif fg_status == "" or fg_status == "Pending":
+                # Reset latch if we go back to unstable/calculating (e.g. new brew started)
+                self._fg_alert_sent = False
+
+    def _send_alert_email(self, subject_prefix, message_body):
+        """Sends a high-priority conditional alert email."""
+        smtp_cfg = self.settings_manager.get_all_smtp_settings()
+        
+        # Config Validation
+        if not all([smtp_cfg['smtp_server'], smtp_cfg['smtp_port'], smtp_cfg['server_email'], smtp_cfg['server_password']]):
+            self._report_error("push", "SMTP details incomplete for Conditional Alert.")
+            return False
+            
+        recipient = smtp_cfg.get('email_recipient')
+        if not recipient:
+            self._report_error("push", "No recipient email configured for Conditional Alert.")
+            return False
+
+        full_subject = f"FermVault ALERT: {subject_prefix}"
+        
+        # Construct Full Body with Timestamp
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        full_body = f"ALERT TRIGGERED AT: {timestamp}\n\n{message_body}\n\n--\nFermVault Monitoring System"
+
+        try:
+            success = self._send_email_or_sms(full_subject, full_body, recipient, smtp_cfg, "Conditional Alert")
+            if success and self.ui:
+                self.ui.log_system_message(f"Conditional Alert Sent: {subject_prefix}")
+            return success
+        except Exception as e:
+            print(f"[NotificationManager] Alert send failed: {e}")
+            return False
+    
     # --- NEW ACTION IMPLEMENTATIONS ---
     def send_manual_status_message(self):
         """Action handler to send a single status message immediately."""

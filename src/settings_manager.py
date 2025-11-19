@@ -147,11 +147,20 @@ class SettingsManager:
     def _get_default_notification_settings(self):
         # This replaces push_notification_settings and conditional_notification_settings
         return {
-            # --- MODIFICATION: Removed "notification_type" and "notification_method" ---
-            # --- MODIFICATION: Changed default from 24 to 0 (None) ---
+            # Push Notification Settings (0 = Disabled/None)
             "frequency_hours": 0, # 0 (None), 1, 2, 4, 8, 12, 24
+            
+            # --- NEW: Conditional Notification Settings ---
+            "conditional_enabled": False,
+            "conditional_amb_min": 32.0, # Stored in Fahrenheit
+            "conditional_amb_max": 85.0, # Stored in Fahrenheit
+            "conditional_beer_min": 32.0, # Stored in Fahrenheit
+            "conditional_beer_max": 75.0, # Stored in Fahrenheit
+            "conditional_fg_stable": False,
+            "conditional_amb_sensor_lost": False,
+            "conditional_beer_sensor_lost": False
         }
-    
+        
     def _get_default_smtp_settings(self):
         return {
             "server_email": "", "server_password": "", "email_recipient": "",
