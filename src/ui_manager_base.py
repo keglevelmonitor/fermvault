@@ -196,8 +196,9 @@ class MainUIBase:
         self.session_dropdown.bind("<<ComboboxSelected>>", self._handle_brew_session_change)
         
         # Menu Container (RIGHT JUSTIFIED)
+        # Spans 2 rows to hold the vertical space, but items inside can be placed in specific rows
         self.menu_container = ttk.Frame(self.header_frame)
-        self.menu_container.grid(row=0, column=5, rowspan=2, sticky='e', padx=5, pady=0)
+        self.menu_container.grid(row=0, column=5, rowspan=2, sticky='ne', padx=5, pady=0)
         
         self.menu_container.grid_columnconfigure(0, weight=1) 
         
@@ -210,14 +211,16 @@ class MainUIBase:
         except:
             self.menu_heading_font = ('TkDefaultFont', 10, 'bold')
 
-        # === MENU 1: SETTINGS ===
-        # --- MODIFICATION: Added width=25 so the button is wider than the menu items ---
-        self.config_menubutton = ttk.Menubutton(self.menu_container, text="Settings", width=20)
-        self.config_menubutton.grid(row=0, column=0, sticky='ew', padx=2, pady=(5, 5))
-        # -------------------------------------------------------------------------------
+        # === SINGLE MENU: SETTINGS ===
+        # Removed rowspan=2 and added pady=(5,5) to align with API dropdown
+        self.settings_menubutton = ttk.Menubutton(self.menu_container, text="Settings", width=20)
+        self.settings_menubutton.grid(row=0, column=0, sticky='ew', padx=2, pady=(5, 5))
         
-        config_menu = tk.Menu(self.config_menubutton, tearoff=0, disabledforeground="black")
-        self.config_menubutton["menu"] = config_menu
+        settings_menu = tk.Menu(self.settings_menubutton, tearoff=0, disabledforeground="black")
+        self.settings_menubutton["menu"] = settings_menu
+        
+        # 1. Configuration Header
+        settings_menu.add_command(label="Configuration", font=self.menu_heading_font, state="disabled")
         
         config_items = [
             "Temperature Setpoints", 
@@ -230,43 +233,38 @@ class MainUIBase:
         
         for item in config_items:
             if item in self.popup_list:
-                config_menu.add_command(label=item, command=lambda choice=item: self._open_popup_by_name(choice))
+                settings_menu.add_command(label=item, command=lambda choice=item: self._open_popup_by_name(choice))
         
-        # === MENU 2: UTILITIES ===
-        # --- MODIFICATION: Added width=25 so the button is wider than the menu items ---
-        self.utilities_menubutton = ttk.Menubutton(self.menu_container, text="Utilities", width=20)
-        self.utilities_menubutton.grid(row=1, column=0, sticky='ew', padx=2, pady=(5, 5))
-        # -------------------------------------------------------------------------------
-
-        utilities_menu = tk.Menu(self.utilities_menubutton, tearoff=0, disabledforeground="black")
-        self.utilities_menubutton["menu"] = utilities_menu
+        settings_menu.add_separator()
         
-        # 1. Operations
-        utilities_menu.add_command(label="Operations", font=self.menu_heading_font, state="disabled")
+        # 2. Utilities Header
+        settings_menu.add_command(label="Utilities", font=self.menu_heading_font, state="disabled")
         
-        utilities_menu.add_command(label="Update Temperature Data", command=lambda: self._handle_actions_menu("Update Temperature Data"))
-        utilities_menu.add_command(label="Update API Data", command=lambda: self._handle_actions_menu("Update API Data"))
-        utilities_menu.add_command(label="Run FG Calculator", command=lambda: self._handle_actions_menu("Run FG Calculator"))
-        utilities_menu.add_command(label="Reload Brew Sessions", command=lambda: self._handle_actions_menu("Reload Brew Sessions"))
+        settings_menu.add_command(label="Update Temperature Data", command=lambda: self._handle_actions_menu("Update Temperature Data"))
+        settings_menu.add_command(label="Update API Data", command=lambda: self._handle_actions_menu("Update API Data"))
+        settings_menu.add_command(label="Run FG Calculator", command=lambda: self._handle_actions_menu("Run FG Calculator"))
+        settings_menu.add_command(label="Reload Brew Sessions", command=lambda: self._handle_actions_menu("Reload Brew Sessions"))
         
-        utilities_menu.add_separator()
+        settings_menu.add_separator()
         
-        # 2. Maintenance & Reset
-        utilities_menu.add_command(label="Maintenance", font=self.menu_heading_font, state="disabled")
-        utilities_menu.add_command(label="Check for Updates", command=lambda: self._handle_actions_menu("Check for Updates"))
-        utilities_menu.add_command(label="Reset to Defaults", command=lambda: self._handle_actions_menu("Reset to Defaults"))
+        # 3. Maintenance Header
+        settings_menu.add_command(label="Maintenance", font=self.menu_heading_font, state="disabled")
         
-        # 3. Info & Help
-        utilities_menu.add_separator()
-        utilities_menu.add_command(label="App Info", font=self.menu_heading_font, state="disabled")
-
+        settings_menu.add_command(label="Check for Updates", command=lambda: self._handle_actions_menu("Check for Updates"))
+        settings_menu.add_command(label="Reset to Defaults", command=lambda: self._handle_actions_menu("Reset to Defaults"))
+        
+        settings_menu.add_separator()
+        
+        # 4. App Info Header
+        settings_menu.add_command(label="App Info", font=self.menu_heading_font, state="disabled")
+        
         info_items = [
             "Wiring Diagram", "Help", "About", "Support this App"
         ]
 
         for item in info_items:
             if item in self.popup_list:
-                utilities_menu.add_command(label=item, command=lambda choice=item: self._open_popup_by_name(choice))
+                settings_menu.add_command(label=item, command=lambda choice=item: self._open_popup_by_name(choice))
         
         row_idx = 0 
         
@@ -413,7 +411,6 @@ class MainUIBase:
         show_on_launch = self.settings_manager.get("show_eula_on_launch", True)
         if show_on_launch:
             self.root.after(100, lambda: self._open_support_popup(is_launch=True))
-        # --- END NEW ---
 
     def _refresh_ui_bindings(self):
         # Set initial background colors

@@ -1,6 +1,6 @@
 Upcoming enhancements:
 - create wiring diagram
-- consider adding wiring diagram or required materials list to readme.md or main somehow
+- add wiring diagram and required materials list to readme.md or root
 
 Change Log:
 
@@ -8,7 +8,6 @@ Nov 18 2025
 - Refactored venv for modern gpio support (should support Rpi 5)
 - Improved Check for Updates process
 - Clarified and improved menu structure
-
 
 Nov 17 2025
 - README.md created for github repository, including most of the material and information needed
