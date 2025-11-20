@@ -50,6 +50,7 @@ Two user-adjustable setpoints, one for ambient and one for beer, specify the tar
 Popups called from the Settings menu allow you to adjust system parameters and view important information about the app. 
 
 [<< Back to Help Index](section:main)
+
 [SECTION: setpoints]
 ## Operational Controls & Modes ##
 Two user-adjustable setpoints, one for ambient and one for beer, specify the target temperature. The control mode determines how the setpoints and actual measurements are used to reach and maintain the target temperature.  
@@ -71,6 +72,7 @@ The beer setpoint is the starting target, the ramp-up setpoint is the end target
 The function of this mode is to quickly decrease the actual beer temperature to achieve the target. The crash setpoint is the target. The control system turns the heating/cooling relays on and off to achieve and maintain the target with the assistance of the ambient temperature measurement and the PID algorithm. Just like the beer control mode, the PID algorithm allows the vault to get very cold, well below freezing if necessary, in order to bring the beer to target as quickly as possible. The PID algorithm brings the deadband closer to the actual beer temperature as it approaches the target, limiting undershoot and thereby virtually eliminating the risk of freezing the beer. 
 
 [<< Back to Help Index](section:main)
+
 [SECTION: pid]
 ##WARNING - EXPERT SETTINGS##
 
@@ -292,3 +294,5 @@ JSON
 * **Timestamps:** All timestamps must be returned as strings in ISO 8601 format. The NotificationManager's parser is built to handle this [cite: notification_manager.py].
 * **Gravity/Temperatures:** All gravity or temperature values must be returned as float (or int) types, or None. The application contains safety checks (e.g., _safe_float_convert) to handle None, but it will crash if it receives a string for a numeric value (e.g., "1.050" instead of 1.050) [cite: brewersfriend.api.py, notification_manager.py].
 * **API Errors:** If the plugin experiences an HTTP error, a KeyError, or any other failure, the get_data method should catch the exception and return None. The APIManager will handle this None return gracefully and log the error [cite: api_manager.py].
+
+[<< Back to Help Index](section:main)
