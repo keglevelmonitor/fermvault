@@ -1,131 +1,31 @@
-[SECTION: api]
-##Custom API Services Implementation##
-##Fermentation Vault API Plugin Specification##
-This document describes the interface "contract" that a custom Python class must follow to be dynamically loaded and used as an API Service by the Fermentation Vault application.
+FermVault Help File Formatting Cheat Sheet
+==========================================
+This file contains the help text for the application.
+Sections are defined by [SECTION: name].
 
-**1. File and Class Naming Convention**
-The APIManager discovers plugins by scanning the application directory for files matching a specific pattern.
+Formatting Syntax:
+------------------
+Headers:      ## Header Text ##           (Must start and end with ##)
+Bullets:      * List Item                 (Must start with * and a space)
+Bold:         **Bold Text** (Wrap text in double asterisks)
+Links (Web):  [Link Text](http://...)     (Opens in default browser)
+Links (App):  [Link Text](section:name)   (Navigates to another help section)
 
-* **File Name:** Must end with .api.py (e.g., my_service.api.py).
-
-* **Class Name:** The file must contain a class whose name is the "camel case" version of the module name, plus "API".
-
-* **brewersfriend.api.py** must contain class BrewersfriendAPI [cite: api_manager.py, brewersfriend.api.py].
-
-* **my_service.api.py** must contain class MyServiceAPI.
-
-* **tilt_hydrometer.api.py** must contain class TiltHydrometerAPI.
-
-**2. Class Initialization (Constructor)**
-The plugin class must implement an __init__ method that accepts a single argument: settings_manager.
-
-* **Definition:** def __init__(self, settings_manager):
-
-* **Purpose:** The application will pass its live SettingsManager instance to the plugin upon initialization [cite: api_manager.py].
-
-* **Implementation:** The plugin is required to use this settings_manager object to retrieve its own API key and any other necessary settings from the api_settings section.
-
-* **Example:** self.api_key = self.settings_manager.get("api_key", "") [cite: brewersfriend.api.py].
-
-**3. Main Data Method (Interface)**
-The plugin class must implement a public method named get_data.
-
-**Definition:** def get_data(self, data_type, session_id=None):
-
-**Parameters:**
-
-* **data_type (str):** A string token that tells the plugin what data the application is requesting (e.g., "list_sessions", "session_data").
-
-* **session_id (str or None):** The unique ID of the brew session, if one is required for the data_type.
-
-* **Return:** The method must return data in the specific format required by the data_type (see Section 4) or None if the API call fails.
-
-**4. Required data_type Endpoints**
-The application will call the get_data method with three distinct data_type strings. The plugin must handle all three.
-
-**A. data_type="list_sessions"**
-Called By: UIManager (to populate the "Brew Session" dropdown) [cite: ui_manager_base.py].
-
-* **session_id:** Will be None.
-
-* **Expected Output:** A List of Dictionaries. Each dictionary represents one brew session and must contain:
-
-* **id (str or int):** The unique identifier for this session.
-
-* **recipe_title (str):** The human-readable name of the session.
-
-* **Example Return:**
-
-JSON
-
-[
-  { "id": "530259", "recipe_title": "Baltic Porter W34/70" },
-  { "id": "530123", "recipe_title": "Hazy IPA - Citra/Mosaic" }
-]
-
-**B. data_type="session_data"**
-* **Called By:** NotificationManager (to populate the main UI's OG/SG fields) [cite: notification_manager.py].
-
-* **session_id:** Will be a valid session ID (str) provided by the UI.
-
-* **Expected Output:** A single Dictionary. This dictionary must contain the following keys. If a value is not available, the plugin should return None for that key.
-
-* **og_actual (float or None):** The Original Gravity.
-
-* **sg_actual (float or None)** The most recent Specific Gravity.
-
-* **og_timestamp (str or None):** An ISO 8601 formatted timestamp string (e.g., "2025-11-10T15:22:44+00:00") for the og_actual reading.
-
-* **sg_timestamp (str or None):** An ISO 8601 formatted timestamp string for the sg_actual reading.
-
-**Example Return:**
-
-JSON
-
-{
-  "og_actual": 1.070,
-  "sg_actual": 1.015,
-  "og_timestamp": "2025-11-01T13:18:16+00:00",
-  "sg_timestamp": "2025-11-10T15:22:44+00:00",
-  "recipe_title": "Baltic Porter W34/70"
-}
-
-**C. data_type="fermentation_history"**
-* **Called By:** FGCalculator (to perform stability analysis) [cite: fg_calculator.py].
-
-* **session_id:** Will be a valid session ID (str) provided by the UI.
-
-* **Expected Output:** A single Dictionary. This dictionary must contain a key named "readings".
-
-* **"readings" (List):** A List of Dictionaries. Each dictionary represents a single historical gravity reading and must contain:
-
-* **gravity (float):** The gravity reading.
-
-* **created_at (str):** An ISO 8601 formatted timestamp string. The list must be in chronological order (oldest to newest, or newest to oldest) for the FGCalculator's windowing function to work correctly.
-
-**Example Return:**
-
-JSON
-
-{
-  "readings": [
-    { "gravity": 1.016, "created_at": "2025-11-09T12:00:00+00:00" },
-    { "gravity": 1.015, "created_at": "2025-11-09T18:00:00+00:00" },
-    { "gravity": 1.015, "created_at": "2025-11-10T00:00:00+00:00" },
-    { "gravity": 1.015, "created_at": "2025-11-10T06:00:00+00:00" }
-  ]
-}
-
-**5. Data Formats & Error Handling**
-* **Timestamps:** All timestamps must be returned as strings in ISO 8601 format. The NotificationManager's parser is built to handle this [cite: notification_manager.py].
-
-* **Gravity/Temperatures:** All gravity or temperature values must be returned as float (or int) types, or None. The application contains safety checks (e.g., _safe_float_convert) to handle None, but it will crash if it receives a string for a numeric value (e.g., "1.050" instead of 1.050) [cite: brewersfriend.api.py, notification_manager.py].
-
-* **API Errors:** If the plugin experiences an HTTP error, a KeyError, or any other failure, the get_data method should catch the exception and return None. The APIManager will handle this None return gracefully and log the error [cite: api_manager.py].
+Note: Standard text is automatically wrapped.
+==========================================
 
 [SECTION: main]
+## FermVault Help ##
+Select a topic below:
+* [Temperature Setpoints & Modes](section:setpoints)
+* [PID Tuning](section:pid)
+* [Notifications & Alerts](section:notifications)
+* [API & Final Gravity](section:api)
+* [Brew Sessions](section:brew_sessions)
+* [System Settings](section:system)
+* [Wiring Diagram](section:wiring)
+
 ##Fermentation Vault##
-**Features**
 The FermVault is a control system that uses temperature sensors and PID control to monitor and manage fermentation temperature. 
 * Optionally, if a digital hydrometer and a service such as brewersfriend.com are used, the fermentation data can be loaded to the app via an API service to help you follow the fermentation process.
 * Optionally, notifications of the vault's current conditions can be emailed on a user-selectable schedule. 
@@ -146,52 +46,28 @@ Two DS18B20 temperature sensors monitor temperature. The ambient sensor is insta
 **Operational controls**
 Two user-adjustable setpoints, one for ambient and one for beer, specify the target temperature. The control mode determines how the setpoints and actual measurements are used to reach and maintain the target temperature.  
 
-**Ambient Hold** control mode: The function of this mode is to quickly bring the actual ambient temperature to the ambient hold setpoint and closely hold that temperature. In this mode the ambient hold setpoint is the target. The control system turns the relays on and off to achieve and maintain the target without regard to the beer hold setpoint. The deadband or "window" for control is +/- 1 degree F from the setpoint. 
+## Settings Menus ##
+Popups called from the Settings menu allow you to adjust system parameters and view important information about the app. 
 
-**Beer Hold** control mode: The function of this mode is to quickly bring the actual beer temperature to the beer hold setpoint and closely hold that temperature. In this mode the beer hold setpoint is the target. The control system turns the relays on and off to achieve and maintain the target with the assistance of the ambient temperature measurement and a PID function. Ambient maximum and minimum thresholds are automatically calculated using the PID function, and are adjusted to provide a narrow deadband for the control process. When the beer setpoint and actual are far apart, the deadband is far higher or lower than the beer temerature, and allows heating or cooling of the ambient air space within the ambient window. As the difference between the beer setpoint and actual narrows, the deadband moves closer to the beer setpoint. The PID function allows the system to heat or cool to the beer target quickly, and hold the temperature, without large overshoot or undershoot. 
+[SECTION: setpoints]
+## Operational Controls & Modes ##
+Two user-adjustable setpoints, one for ambient and one for beer, specify the target temperature. The control mode determines how the setpoints and actual measurements are used to reach and maintain the target temperature.  
 
-**Ramp-up** control mode: The function of this mode is to slowly increase the beer setpoint and thus the actual beer temperature to achieve a specified hold target in a specified period of time. This method is often used for lager fermentation, and the finished target is often used for the diacetyl rest. In this mode the beer hold setpoint is the starting target, the ramp-up hold setpoint is the end target, and the ramp-up duration is used to calculate how much and how often the beer setpoint is incremented. The PID function allows the system to continuously ramp-up the beer temperature to the target in a smooth and controlled fashion.
+**Ambient Control Mode**
+The function of this mode is to quickly bring the actual ambient temperature to the ambient setpoint and closely hold that temperature. The ambient setpoint is the target. The control system turns the heating/cooling relays on and off to achieve and maintain the target without regard to the beer setpoint. The default deadband or "window" for control is +/- 1 degree F from the setpoint. The deadband is user-adjustable.
 
-**Fast Crash** control mode: The function of this mode is to quickly decrease the actual beer temperature to achieve the target. In this mode the fast crash hold setpoint is the target. The control system turns the relays on and off to achieve and maintain the target with the assistance of the ambient temperature measurement and a PID function. Just like the beer hold control mode, the PID function allows the vault to get very cold, well below freezing if necessary, in order to bring the beer to target as quickly as possible. The PID function brings the deadband closer to the actual beer temperature as it approaches the target, limiting undershoot and thereby virtually eliminating the risk of freezing the beer. 
+**Beer Control Mode**
+The function of this mode is to quickly bring the actual beer temperature to the beer setpoint and closely hold that temperature. The beer setpoint is the target. The control system turns the heating/cooling relays on and off to achieve and maintain the target with the assistance of the ambient actual temperature and the PID algorithm.
 
-##API Services selection##
-API Services are optional. When OFF, all API functions are disabled. 
+Ambient maximum and minimum thresholds are automatically calculated using the PID algorithm, and are adjusted to provide a narrow deadband. When the beer setpoint and actual are far apart, the deadband is far higher or lower than the beer temperature. Thus the ambient temperature is far higher or lower than the beer temperature, allowing more rapid heating or cooling of the beer. As the difference between the beer setpoint and actual narrows, the deadband moves closer to the beer setpoint. The PID algorithm allows the system to heat or cool to the beer target quickly, and hold the temperature, without large overshoot or undershoot. The PID parameters are user-adjustable.
 
-The default API service is brewersfriend.com. If you subscribe to brewersfriend.com and use a digital hydrometer like the Tilt, iSpindel, or RAPT Pill, you can enable the brewersfriend.com API service. Doing so will allow you to:
-* Select the Brew Session from a list of the ten most recent brew sessions at brewersfriend.com.
-* Collect and show OG (Original Gravity) and SG (current Specific Gravity) readings in the FermVault app. 
-* Calculate FG (Final Gravity) based on parameters set in the API Settings popup. 
+**Ramp Control Mode**
+The function of this mode is to slowly increase the beer setpoint and thus the actual beer temperature to achieve a specified hold target in a specified period of time. This method is often used for lager fermentation, and the finished target is often used for a diacetyl rest. 
 
-**Custom API Services**
-Custom API services can be created by the user. For information on creating your own API service file, see the 'Custom API Services Help' button on the 'API & FG Settings' popup.
+The beer setpoint is the starting target, the ramp-up setpoint is the end target, and the ramp duration is used to calculate how much and how often the beer setpoint is incremented. The PID algorithm allows the system to continuously ramp-up the beer temperature to the target in a smooth and controlled fashion.
 
-##Brew Session selection##
-If API Services are OFF, you can select the current brew session from the list in the Brew Sessions Popup.
-
-If an API service is selected, you can select the Brew Session from the list of the ten most recent brew sessions.  
-
-##Settings & Info selection##
-Popups called from the Settings & Info menu allow you to adjust system parameters and view important information about the app. 
-
-**Settings** menus allow you to:
-* adjust the temperature setpoints and ramp up parameters.
-* adjust the email notification interval and set all email parameters.
-* set the API settings parameters.
-* enter brew session names for the Brew Session dropdown when API services are not being used.
-* adjust system settings for compressor protection, assign temperature sensors for ambient and beer measurements, and enable data logging for PID analysis.
-
-**Info** menus allow you to:
-* view a system wiring diagram
-* view this help system
-* find the version number and release notes for this app
-* support the development and maintenance of this app with a donation
-
-##Actions selection##
-The actions menu allows you to run specific actions when selected: 
-* **Send Status Message** immediately sends a status message (parameters in Notification Settings must be complete and valid)
-* **Update API & Temp Data** immediately updates the API information (a API service must be selected) and the temperature data for ambient and beer
-* **Reload Brew Sessions** immediately updates the list of Brew Sessions from the API service
-* **Run FG Calculator** immediately runs the FG calculator and updates the FG status and messages
+**Crash Control Mode**
+The function of this mode is to quickly decrease the actual beer temperature to achieve the target. The crash setpoint is the target. The control system turns the heating/cooling relays on and off to achieve and maintain the target with the assistance of the ambient temperature measurement and the PID algorithm. Just like the beer control mode, the PID algorithm allows the vault to get very cold, well below freezing if necessary, in order to bring the beer to target as quickly as possible. The PID algorithm brings the deadband closer to the actual beer temperature as it approaches the target, limiting undershoot and thereby virtually eliminating the risk of freezing the beer. 
 
 [SECTION: pid]
 ##WARNING - EXPERT SETTINGS##
@@ -284,4 +160,129 @@ This mode is a 3-stage process. These parameters control the "gates" between tho
 
 	* **Ramp: PID Landing Zone:** This is the trigger (in F) for this stage. When the moving target is this close to the final "Ramp Temp" (e.g., 0.5 F away), the system will switch from Thermostatic to PID control.
 
+[SECTION: notifications]
+## Notifications ##
+Configure how the app alerts you.
 
+**Push Notifications**
+Periodic status updates sent to your email. You can adjust the email notification interval (Frequency) and set the recipient email address.
+
+**Conditional Notifications**
+Triggered when specific conditions are met, such as:
+* Ambient or beer temperature exceeds defined limits.
+* Final Gravity (FG) becomes stable.
+* A sensor is disconnected or fails.
+
+**Email Controls (Status & Commands)**
+This feature allows you to send emails **TO** the Pi to request a status update or change settings remotely. When enabled, the RPi scans the configured email account for new messages. If a new message is found, it is processed by the app and marked as Read in the email account. If STATUS or COMMAND is in the subject line, the app parses the information in the email and acts: 
+* If STATUS is in the subject line, a report of the current conditions is emailed to the recipient email address. 
+* If COMMAND is in the subject line, the app parses the body of the email and processes valid commands (such a changing control mode or setpoints). 
+* Note that STATUS and COMMAND are not case-sensitive.
+
+**Email Configuration**
+Notifications require a valid SMTP configuration (for outgoing) and IMAP configuration (for incoming) in the "RPi Email Configuration" tab.
+
+It is recommended that you use a dedicated email account set up exclusively for use by this app. If you use your personal email for this feature, then every minute your email account's inbox will be scanned. New messages will be marked as read. The app will try to find any email with Status or Command. You don't want the app running through your personal emails and marking them read and looking for valid commands for the app. Use an email account dedicated for use by this app only.
+
+[SECTION: api]
+## API Services ##
+API Services are optional. When OFF, all API functions are disabled. 
+
+The default API service is brewersfriend.com. If you subscribe to brewersfriend.com and use a digital hydrometer like the Tilt, iSpindel, or RAPT Pill, you can enable the brewersfriend.com API service. Doing so will allow you to:
+* Select the Brew Session from a list of the ten most recent brew sessions at brewersfriend.com.
+* Collect and show OG (Original Gravity) and SG (current Specific Gravity) readings in the FermVault app. 
+* Calculate FG (Final Gravity) based on parameters set in the API Settings popup. 
+
+## Final Gravity (FG) Settings ##
+* **FG Check Frequency**: How often to check for stable gravity.
+* **SG Range Tolerance**: The maximum gravity change allowed to be considered "stable".
+* **SG Records Window**: The number of data points to analyze for stability.
+* **Max SG Outliers**: How many anomalous readings to ignore.
+
+## Custom API Services Implementation ##
+You can create a custom API service to interact with the app.
+
+This section describes the interface "contract" that a custom Python class must follow to be dynamically loaded and used as an API Service by the Fermentation Vault application.
+
+**1. File and Class Naming Convention**
+The APIManager discovers plugins by scanning the application directory for files matching a specific pattern.
+* **File Name:** Must end with `.api.py` (e.g., `my_service.api.py`).
+* **Class Name:** The file must contain a class whose name is the "camel case" version of the module name, plus "API".
+    * `brewersfriend.api.py` must contain class `BrewersfriendAPI`.
+    * `my_service.api.py` must contain class `MyServiceAPI`.
+
+**2. Class Initialization (Constructor)**
+The plugin class must implement an `__init__` method that accepts a single argument: `settings_manager`.
+* **Definition:** `def __init__(self, settings_manager):`
+* **Purpose:** The application will pass its live SettingsManager instance to the plugin upon initialization.
+* **Implementation:** The plugin is required to use this `settings_manager` object to retrieve its own API key and any other necessary settings.
+
+**3. Main Data Method (Interface)**
+The plugin class must implement a public method named `get_data`.
+* **Definition:** `def get_data(self, data_type, session_id=None):`
+* **Parameters:**
+    * `data_type (str)`: A string token that tells the plugin what data the application is requesting.
+    * `session_id (str or None)`: The unique ID of the brew session, if one is required.
+* **Return:** The method must return data in the specific format required by the `data_type` or `None` if the API call fails.
+
+**4. Required data_type Endpoints**
+
+**A. data_type="list_sessions"**
+* **Called By:** UIManager (to populate the "Brew Session" dropdown).
+* **Expected Output:** A List of Dictionaries. Each dictionary must contain:
+    * `id (str or int)`: The unique identifier for this session.
+    * `recipe_title (str)`: The human-readable name.
+* **Example Return:**
+```json
+[
+  { "id": "530259", "recipe_title": "Baltic Porter" },
+  { "id": "530123", "recipe_title": "Hazy IPA" }
+]
+
+
+**B. data_type="session_data"**
+* **Called By:** NotificationManager (to populate the main UI's OG/SG fields) [cite: notification_manager.py].
+* **session_id:** Will be a valid session ID (str) provided by the UI.
+* **Expected Output:** A single Dictionary. This dictionary must contain the following keys. If a value is not available, the plugin should return None for that key.
+* **og_actual (float or None):** The Original Gravity.
+* **sg_actual (float or None):** The most recent Specific Gravity.
+* **og_timestamp (str or None):** An ISO 8601 formatted timestamp string (e.g., "2025-11-10T15:22:44+00:00") for the og_actual reading.
+* **sg_timestamp (str or None):** An ISO 8601 formatted timestamp string for the sg_actual reading.
+
+**Example Return:**
+
+JSON
+
+{
+"og_actual": 1.070,
+"sg_actual": 1.015,
+"og_timestamp": "2025-11-01T13:18:16+00:00",
+"sg_timestamp": "2025-11-10T15:22:44+00:00",
+"recipe_title": "Baltic Porter W34/70"
+}
+
+**C. data_type="fermentation_history"**
+* **Called By:** FGCalculator (to perform stability analysis) [cite: fg_calculator.py].
+* **session_id:** Will be a valid session ID (str) provided by the UI.
+* **Expected Output:** A single Dictionary. This dictionary must contain a key named "readings".
+* **"readings" (List):** A List of Dictionaries. Each dictionary represents a single historical gravity reading and must contain:
+* **gravity (float):** The gravity reading.
+* **created_at (str):** An ISO 8601 formatted timestamp string. The list must be in chronological order (oldest to newest, or newest to oldest) for the FGCalculator's windowing function to work correctly.
+
+**Example Return:**
+
+JSON
+
+{
+"readings": [
+{ "gravity": 1.016, "created_at": "2025-11-09T12:00:00+00:00" },
+{ "gravity": 1.015, "created_at": "2025-11-09T18:00:00+00:00" },
+{ "gravity": 1.015, "created_at": "2025-11-10T00:00:00+00:00" },
+{ "gravity": 1.015, "created_at": "2025-11-10T06:00:00+00:00" }
+]
+}
+
+**5. Data Formats & Error Handling**
+* **Timestamps:** All timestamps must be returned as strings in ISO 8601 format. The NotificationManager's parser is built to handle this [cite: notification_manager.py].
+* **Gravity/Temperatures:** All gravity or temperature values must be returned as float (or int) types, or None. The application contains safety checks (e.g., _safe_float_convert) to handle None, but it will crash if it receives a string for a numeric value (e.g., "1.050" instead of 1.050) [cite: brewersfriend.api.py, notification_manager.py].
+* **API Errors:** If the plugin experiences an HTTP error, a KeyError, or any other failure, the get_data method should catch the exception and return None. The APIManager will handle this None return gracefully and log the error [cite: api_manager.py].

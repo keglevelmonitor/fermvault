@@ -259,13 +259,11 @@ class PopupManager:
     # --- CONTROL MODE SETTINGS ---
     def _open_control_mode_settings_popup(self):
         popup = tk.Toplevel(self.root)
-        # popup.withdraw() <-- REMOVED FROM HERE
         popup.title("Temperature Setpoints")
         popup.transient(self.root); popup.grab_set()
         
         c_settings = self.settings_manager.get_all_control_settings()
         
-        # Convert control unit (F) values back to display units (F or C)
         is_display_f = c_settings['temp_units'] == "F"
         def to_display(temp_f):
             return temp_f if is_display_f else (temp_f - 32) * 5/9
@@ -276,86 +274,51 @@ class PopupManager:
         self.ramp_duration_var.set(f"{c_settings['ramp_up_duration_hours']:.1f}")
         self.crash_hold_var.set(f"{to_display(c_settings['fast_crash_hold_f']):.1f}")
         self.control_units_var.set(c_settings['temp_units'])
-        
-        # --- MODIFICATION: Store the current unit state for the handler ---
         self.popup_display_units = c_settings['temp_units']
-        # --- END MODIFICATION ---
 
-        # Build UI
         form_frame = ttk.Frame(popup, padding="15"); 
         form_frame.pack(fill="both", expand=True)
         
-        ROW_PADDING = 8
-        LABEL_WIDTH = 20
-        INPUT_WIDTH = 6
+        ROW_PADDING = 8; LABEL_WIDTH = 20; INPUT_WIDTH = 6
 
         def add_row(parent, label_text, var, unit_var=None, unit_text=None, is_dropdown=False, options=None):
             row = tk.Frame(parent)
             row.pack(fill='x', pady=(ROW_PADDING, 0))
-            
             ttk.Label(row, text=label_text, width=LABEL_WIDTH, anchor='w').pack(side='left')
             
-            widget = None # Define widget
+            widget = None
             if is_dropdown:
                 widget = ttk.Combobox(row, textvariable=var, values=options, state="readonly", width=INPUT_WIDTH)
             else:
                 widget = ttk.Entry(row, textvariable=var, width=INPUT_WIDTH)
             widget.pack(side='left', padx=(5, 5))
             
-            if unit_var:
-                 ttk.Label(row, textvariable=unit_var).pack(side='left')
-            elif unit_text:
-                 ttk.Label(row, text=unit_text).pack(side='left')
-                 
-            return widget # Return the widget for binding
+            if unit_var: ttk.Label(row, textvariable=unit_var).pack(side='left')
+            elif unit_text: ttk.Label(row, text=unit_text).pack(side='left')
+            return widget
 
-
-        # Units Selector
-        units_dropdown = add_row(form_frame, "Temperature Units:", self.control_units_var, is_dropdown=True, options=["F", "C"])
-        
-        # --- MODIFICATION: Add the trace to the variable for dynamic updates ---
+        add_row(form_frame, "Temperature Units:", self.control_units_var, is_dropdown=True, options=["F", "C"])
         self.control_units_var.trace_add("write", self._on_units_changed)
-        # --- END MODIFICATION ---
         
-        # --- MODIFICATION: Update popup labels to shorter names ---
-        # Ambient Hold
         add_row(form_frame, "Ambient Temp:", self.amb_hold_var, unit_var=self.control_units_var)
-
-        # Beer Hold
         add_row(form_frame, "Beer Temp:", self.beer_hold_var, unit_var=self.control_units_var)
-
-        # Ramp-Up Hold
         add_row(form_frame, "Ramp Temp:", self.ramp_hold_var, unit_var=self.control_units_var)
-        
-        # Ramp-Up Duration
         add_row(form_frame, "Ramp Duration:", self.ramp_duration_var, unit_text="hours")
-
-        # Fast Crash Hold
         add_row(form_frame, "Crash Temp:", self.crash_hold_var, unit_var=self.control_units_var)
-        # --- END MODIFICATION ---
         
-        # Buttons
         btns_frame = ttk.Frame(popup, padding="10"); 
         btns_frame.pack(fill="x", side="bottom")
         ttk.Button(btns_frame, text="Save", command=lambda: self._save_control_mode_settings(popup)).pack(side="right", padx=5)
         ttk.Button(btns_frame, text="Cancel", command=popup.destroy).pack(side="right")
         
-        # --- THIS IS THE FIX (Part 1) ---
-        # 1. Calculate the required size (while window is still visible)
+        # HELP BUTTON (Linked to 'setpoints' section)
+        ttk.Button(btns_frame, text="Help", width=8,
+                   command=lambda: self._open_help_popup("setpoints")).pack(side="right", padx=5)
+        
         popup.update_idletasks()
-        
-        popup_width = 380
-        popup_height = popup.winfo_height()
-        
-        # 2. Hide the popup *after* getting its size
         popup.withdraw()
-        # --- END FIX (Part 1) ---
+        self._center_popup(popup, 380, popup.winfo_height())
         
-        # --- THIS IS THE FIX (Part 2) ---
-        # 3. Center and reveal (the helper function now just centers and reveals)
-        self._center_popup(popup, popup_width, popup_height)
-        # --- END FIX (Part 2) ---
-
     def _save_control_mode_settings(self, popup):
         try:
             # 1. Retrieve CURRENT (OLD) settings from disk
@@ -481,19 +444,15 @@ class PopupManager:
         popup.transient(self.root)
         popup.grab_set()
         
-        # --- LOAD DATA ---
         push_settings = self.settings_manager.get_all_smtp_settings()
         req_settings = self.settings_manager.get_all_status_request_settings()
-        
-        # --- FIX: Access the raw settings dict directly to get the category ---
         notif_settings = self.settings_manager.settings.get("notification_settings", {})
-        # --- END FIX ---
         
         # 1. Push Vars
         freq_h = self.settings_manager.get("frequency_hours", 24)
         if freq_h == 0 or freq_h == "None":
             self.push_enable_var.set(False)
-            self.notif_freq_h_var.set("Every 24 hours") # Default for display
+            self.notif_freq_h_var.set("Every 24 hours")
         else:
             self.push_enable_var.set(True)
             self.notif_freq_h_var.set(f"Every {freq_h} hours")
@@ -506,7 +465,6 @@ class PopupManager:
         self.cond_amb_lost_var.set(notif_settings.get("conditional_amb_sensor_lost", False))
         self.cond_beer_lost_var.set(notif_settings.get("conditional_beer_sensor_lost", False))
         
-        # Handle Temperature Conversion for Display
         control_settings = self.settings_manager.get_all_control_settings()
         units = control_settings.get('temp_units', 'F')
         self.cond_temp_unit_label.set(units)
@@ -532,62 +490,40 @@ class PopupManager:
         self.req_smtp_server_var.set(push_settings.get("smtp_server", ""))
         self.req_smtp_port_var.set(str(push_settings.get("smtp_port", 587)))
 
-        # --- BUILD UI ---
-        
-        # Create Notebook with reduced padding
         notebook = ttk.Notebook(popup)
         notebook.pack(expand=True, fill='both', padx=5, pady=5)
 
-        # Tab 1: Alerts & Controls
-        tab1 = ttk.Frame(notebook, padding=5)
-        notebook.add(tab1, text='Alerts & Controls')
-
-        # Tab 2: RPi Email Configuration
-        tab2 = ttk.Frame(notebook, padding=5)
-        notebook.add(tab2, text='RPi Email Configuration')
+        tab1 = ttk.Frame(notebook, padding=5); notebook.add(tab1, text='Alerts & Controls')
+        tab2 = ttk.Frame(notebook, padding=5); notebook.add(tab2, text='RPi Email Configuration')
         
-        # --- TAB 1: ALERTS & CONTROLS ---
-        
-        # Section A: Outbound Alerts
         outbound_frame = ttk.LabelFrame(tab1, text="Outbound Alerts (Push & Conditional)", padding=5)
         outbound_frame.pack(fill='x', pady=(0, 5))
         
-        # 1. Recipient
-        recip_frame = ttk.Frame(outbound_frame)
-        recip_frame.pack(fill='x', pady=2)
+        recip_frame = ttk.Frame(outbound_frame); recip_frame.pack(fill='x', pady=2)
         ttk.Label(recip_frame, text="Recipient Email:", width=20, anchor='w').pack(side='left')
         self.push_recipient_entry = ttk.Entry(recip_frame, textvariable=self.push_recipient_var, width=35)
         self.push_recipient_entry.pack(side='left', fill='x', expand=True)
         
-        ttk.Label(outbound_frame, text="(Required if either Push or Conditional notifications are enabled)", 
-                  font=('TkDefaultFont', 8, 'italic')).pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(outbound_frame, text="(Required if either Push or Conditional notifications are enabled)", font=('TkDefaultFont', 8, 'italic')).pack(anchor='w', padx=20, pady=(0, 5))
         
-        # 2. Push Notifications
         self.push_enable_check = ttk.Checkbutton(outbound_frame, text="Enable Push Notifications", variable=self.push_enable_var)
         self.push_enable_check.pack(anchor='w', pady=(0, 2))
         
-        push_notes = "E.g. Daily status reports sent at a fixed interval."
-        ttk.Label(outbound_frame, text=push_notes, font=('TkDefaultFont', 8, 'italic'), 
-                  wraplength=500).pack(anchor='w', padx=25, pady=(0, 2))
+        ttk.Label(outbound_frame, text="E.g. Daily status reports sent at a fixed interval.", font=('TkDefaultFont', 8, 'italic'), wraplength=500).pack(anchor='w', padx=25, pady=(0, 2))
 
-        freq_frame = ttk.Frame(outbound_frame)
-        freq_frame.pack(fill='x', padx=25, pady=(0, 5))
+        freq_frame = ttk.Frame(outbound_frame); freq_frame.pack(fill='x', padx=25, pady=(0, 5))
         ttk.Label(freq_frame, text="Report Frequency:", width=20, anchor='w').pack(side='left')
         freq_options = ["Every 1 hour", "Every 2 hours", "Every 4 hours", "Every 8 hours", "Every 12 hours", "Every 24 hours"]
         self.notif_freq_dropdown = ttk.Combobox(freq_frame, textvariable=self.notif_freq_h_var, values=freq_options, state="readonly", width=20)
         self.notif_freq_dropdown.pack(side='left')
         
-        # 3. Conditional Notifications
         self.cond_enable_check = ttk.Checkbutton(outbound_frame, text="Enable Conditional Notifications", variable=self.conditional_enable_var)
         self.cond_enable_check.pack(anchor='w', pady=(5, 2))
         
-        cond_sub_frame = ttk.Frame(outbound_frame)
-        cond_sub_frame.pack(fill='x', padx=25)
-        
-        # Helper for Temp Rows
+        cond_sub_frame = ttk.Frame(outbound_frame); cond_sub_frame.pack(fill='x', padx=25)
+        self.cond_temp_entries = [] 
         def add_temp_row(parent, label, var_min, var_max):
-            row = ttk.Frame(parent)
-            row.pack(fill='x', pady=1)
+            row = ttk.Frame(parent); row.pack(fill='x', pady=1)
             ttk.Label(row, text=label, width=30, anchor='w').pack(side='left')
             self.cond_temp_entries.append(ttk.Entry(row, textvariable=var_min, width=6))
             self.cond_temp_entries[-1].pack(side='left', padx=2)
@@ -596,7 +532,6 @@ class PopupManager:
             self.cond_temp_entries[-1].pack(side='left', padx=2)
             ttk.Label(row, textvariable=self.cond_temp_unit_label).pack(side='left')
             
-        self.cond_temp_entries = [] # Store references to enable/disable
         add_temp_row(cond_sub_frame, "Ambient temp outside the range:", self.cond_amb_min_var, self.cond_amb_max_var)
         add_temp_row(cond_sub_frame, "Beer temp outside the range:", self.cond_beer_min_var, self.cond_beer_max_var)
         
@@ -608,13 +543,13 @@ class PopupManager:
         self.cond_checks.append(ttk.Checkbutton(cond_sub_frame, text="Beer temp sensor lost", variable=self.cond_beer_lost_var))
         self.cond_checks[-1].pack(anchor='w', pady=1)
         
-        # Section B: Inbound Controls
         inbound_frame = ttk.LabelFrame(tab1, text="Inbound Controls (Status & Commands)", padding=5)
         inbound_frame.pack(fill='x', pady=5)
         
         self.req_enable_check = ttk.Checkbutton(inbound_frame, text="Enable Email Control (Status & Commands)", variable=self.req_enable_var)
         self.req_enable_check.pack(anchor='w', pady=(0, 2))
         
+        # --- RESTORED ORIGINAL WARNING TEXT ---
         warning_text_tab1 = (
             "WARNING: When enabled, the app checks the 'RPi Email Configuration' account for new messages "
             "from the Authorized Sender. If new messages exist, the app marks them as 'read', and "
@@ -624,15 +559,12 @@ class PopupManager:
         )
         ttk.Label(inbound_frame, text=warning_text_tab1, font=('TkDefaultFont', 8, 'italic'), wraplength=600, justify='left').pack(anchor='w', padx=20, pady=(0, 5))
         
-        auth_frame = ttk.Frame(inbound_frame)
-        auth_frame.pack(fill='x', padx=20, pady=(0, 5))
+        auth_frame = ttk.Frame(inbound_frame); auth_frame.pack(fill='x', padx=20, pady=(0, 5))
         ttk.Label(auth_frame, text="Authorized Sender:", width=20, anchor='w').pack(side='left')
         self.req_sender_entry = ttk.Entry(auth_frame, textvariable=self.req_sender_var, width=35)
         self.req_sender_entry.pack(side='left', fill='x', expand=True)
         
-        # --- TAB 2: RPi CONFIG ---
-        
-        # Warning Text (Top of Tab 2)
+        # --- REPEAT WARNING ON TAB 2 (As in original) ---
         warning_text_tab2 = (
             "WARNING: When Email Control is enabled, the app checks the 'RPi Email Configuration' account for new messages "
             "from the Authorized Sender. If new messages exist, the app marks them as 'read', and "
@@ -641,10 +573,9 @@ class PopupManager:
             "configuration settings on the 'RPi Email Configuration' tab."
         )
         ttk.Label(tab2, text=warning_text_tab2, font=('TkDefaultFont', 8, 'italic'), wraplength=600, justify='left').pack(anchor='w', pady=(0, 10))
-        
+
         def add_cfg_row(parent, label, var, show_char=None):
-            row = ttk.Frame(parent)
-            row.pack(fill='x', pady=4)
+            row = ttk.Frame(parent); row.pack(fill='x', pady=4)
             ttk.Label(row, text=label, width=25, anchor='w').pack(side='left')
             entry = ttk.Entry(row, textvariable=var, width=30, show=show_char)
             entry.pack(side='left', fill='x', expand=True)
@@ -659,24 +590,21 @@ class PopupManager:
         self.imap_server_entry = add_cfg_row(tab2, "IMAP (incoming) server:", self.req_imap_server_var)
         self.imap_port_entry = add_cfg_row(tab2, "IMAP (incoming) port:", self.req_imap_port_var)
         
-        # --- BUTTONS ---
         btns_frame = ttk.Frame(popup, padding="10"); btns_frame.pack(fill="x", side="bottom")
         ttk.Button(btns_frame, text="Save", command=lambda: self._save_notification_settings(popup)).pack(side="right", padx=5)
         ttk.Button(btns_frame, text="Cancel", command=popup.destroy).pack(side="right")
         
-        # --- TRACES ---
+        # HELP BUTTON
+        ttk.Button(btns_frame, text="Help", width=8,
+                   command=lambda: self._open_help_popup("notifications")).pack(side="right", padx=5)
+        
         self.push_enable_var.trace_add("write", self._toggle_email_fields_state)
         self.conditional_enable_var.trace_add("write", self._toggle_email_fields_state)
         self.req_enable_var.trace_add("write", self._toggle_email_fields_state)
-        
         self._toggle_email_fields_state()
         
-        # Center with reduced size
-        popup.update_idletasks()
-        popup_width = 650
-        popup_height = 550
-        popup.withdraw()
-        self._center_popup(popup, popup_width, popup_height)
+        popup.update_idletasks(); popup.withdraw()
+        self._center_popup(popup, 650, 550)
         
     def _save_notification_settings(self, popup):
         try:
@@ -863,18 +791,12 @@ class PopupManager:
 
     # --- API SETTINGS ---
     def _open_api_settings_popup(self):
-        # --- MODIFICATION: Removed initial geometry ---
         popup = tk.Toplevel(self.root); popup.title("API & FG Settings"); popup.transient(self.root); popup.grab_set()
-        # --- END MODIFICATION ---
         
         api_settings = self.settings_manager.get_all_api_settings()
         self.api_key_var.set(api_settings['api_key'])
         self.api_freq_min_var.set(str(int(api_settings['api_call_frequency_s'] / 60)))
-        
-        # --- NEW: Load API logging var ---
         self.api_logging_var.set(api_settings.get("api_logging_enabled", False))
-        # --- END NEW ---
-        
         self.fg_check_freq_h_var.set(str(api_settings['fg_check_frequency_h']))
         self.fg_tolerance_var.set(str(api_settings['tolerance']))
         self.fg_window_size_var.set(str(api_settings['window_size']))
@@ -882,40 +804,19 @@ class PopupManager:
         
         form_frame = ttk.Frame(popup, padding="15"); form_frame.pack(fill="both", expand=True)
         
-        # --- Adjusted add_api_row helper for required padding/justification ---
         def add_api_row(parent, label, var, unit=None, notes=None, is_key=False):
             row_frame = ttk.Frame(parent); row_frame.pack(fill="x", pady=5)
-            
-            # Label (always left)
             ttk.Label(row_frame, text=label, width=25, anchor='w').pack(side='left')
-            
-            # Input Widget
-            # --- MODIFICATION: Increased API Key field width from 45 to 60 ---
             entry = ttk.Entry(row_frame, textvariable=var, width=(60 if is_key else 15))
             entry.pack(side='left', padx=(5, 5), fill=('x' if is_key else 'none'), expand=is_key)
-            
             if unit: ttk.Label(row_frame, text=unit).pack(side='left')
-            
-            if notes: 
-                 notes_label = ttk.Label(parent, text=notes, font=('TkDefaultFont', 8, 'italic'), wraplength=400)
-                 # FIX 3: Left-justify help text below the left column
-                 notes_label.pack(anchor='w', padx=(5, 5)) 
+            if notes: ttk.Label(parent, text=notes, font=('TkDefaultFont', 8, 'italic'), wraplength=400).pack(anchor='w', padx=(5, 5)) 
         
-        # FIX 1 & 2: Removed 'BrewersFriend' and passed is_key=True for wide field
         add_api_row(form_frame, "API Key:", self.api_key_var, is_key=True)
-        
         add_api_row(form_frame, "API Call Frequency:", self.api_freq_min_var, unit="minutes", notes="Data refresh rate for OG/SG/Temp.")
-
-        # --- NEW: Add Checkbox for API Logging ---
-        ttk.Checkbutton(form_frame, 
-                        text="Enable API call logging to System Messages", 
-                        variable=self.api_logging_var).pack(anchor='w', padx=5, pady=(5, 0))
-        # --- END NEW ---
-
+        ttk.Checkbutton(form_frame, text="Enable API call logging to System Messages", variable=self.api_logging_var).pack(anchor='w', padx=5, pady=(5, 0))
         ttk.Separator(form_frame, orient='horizontal').pack(fill='x', pady=10)
         ttk.Label(form_frame, text="Final Gravity Calculation Parameters", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
-
-        # Fixes 3 applied to all notes via the helper change
         add_api_row(form_frame, "FG Check Frequency:", self.fg_check_freq_h_var, unit="hours", notes="How often the scheduler runs the FG stability analysis.")
         add_api_row(form_frame, "SG Range Tolerance:", self.fg_tolerance_var, notes="Max allowed change in SG (e.g., 0.0005).")
         add_api_row(form_frame, "SG Records Window:", self.fg_window_size_var, notes="Number of consecutive readings to check (e.g., 450).")
@@ -923,19 +824,15 @@ class PopupManager:
         
         btns_frame = ttk.Frame(popup, padding="10"); btns_frame.pack(fill="x", side="bottom")
         
-        # --- MODIFICATION: Updated button text ---
-        ttk.Button(btns_frame, text="Custom API Services Help", command=self._open_api_help_popup).pack(side="left", padx=5)
-        # --- END MODIFICATION ---
+        # HELP BUTTON (Linked to 'api' section)
+        ttk.Button(btns_frame, text="Help", width=8,
+                   command=lambda: self._open_help_popup("api")).pack(side="left", padx=5)
         
         ttk.Button(btns_frame, text="Save", command=lambda: self._save_api_settings(popup)).pack(side="right", padx=5)
         ttk.Button(btns_frame, text="Cancel", command=popup.destroy).pack(side="right")
         
-        # --- MODIFICATION: Use dynamic centering ---
-        popup.update_idletasks()
-        popup_width = 600
-        popup_height = popup.winfo_height()
-        self._center_popup(popup, popup_width, popup_height)
-        # --- END MODIFICATION ---
+        popup.update_idletasks(); popup.withdraw()
+        self._center_popup(popup, 600, popup.winfo_height())
         
     def _save_api_settings(self, popup):
         try:
@@ -1030,70 +927,48 @@ class PopupManager:
             messagebox.showerror("Input Error", f"Please enter valid positive numbers for all fields. ({e})", parent=popup)
 
     # --- SYSTEM SETTINGS ---
-    def _open_system_settings_popup(self):
-        # --- MODIFICATION: Removed initial geometry ---
-        popup = tk.Toplevel(self.root); popup.title("System Settings"); popup.transient(self.root); popup.grab_set() 
-        # --- END MODIFICATION ---
+    def _open_api_settings_popup(self):
+        popup = tk.Toplevel(self.root); popup.title("API & FG Settings"); popup.transient(self.root); popup.grab_set()
         
-        comp_settings = self.settings_manager.get_all_compressor_protection_settings()
-        sys_settings = self.settings_manager.get_system_settings()
-
-        # Load values (convert seconds to minutes)
-        self.dwell_time_min_var.set(str(int(comp_settings['cooling_dwell_time_s'] / MINUTES_TO_SECONDS)))
-        self.max_run_time_min_var.set(str(int(comp_settings['max_cool_runtime_s'] / MINUTES_TO_SECONDS)))
-        self.fail_safe_shutdown_min_var.set(str(int(comp_settings['fail_safe_shutdown_time_s'] / MINUTES_TO_SECONDS)))
+        api_settings = self.settings_manager.get_all_api_settings()
+        self.api_key_var.set(api_settings['api_key'])
+        self.api_freq_min_var.set(str(int(api_settings['api_call_frequency_s'] / 60)))
+        self.api_logging_var.set(api_settings.get("api_logging_enabled", False))
+        self.fg_check_freq_h_var.set(str(api_settings['fg_check_frequency_h']))
+        self.fg_tolerance_var.set(str(api_settings['tolerance']))
+        self.fg_window_size_var.set(str(api_settings['window_size']))
+        self.fg_max_outliers_var.set(str(api_settings['max_outliers']))
         
-        self.beer_sensor_var.set(sys_settings.get("ds18b20_beer_sensor", "unassigned"))
-        self.ambient_sensor_var.set(sys_settings.get("ds18b20_ambient_sensor", "unassigned"))
-        
-        # --- MODIFICATION: PID logging var is loaded, but not used in this UI ---
-        self.pid_logging_var.set(sys_settings.get("pid_logging_enabled", False))
-        # --- END MODIFICATION ---
-
         form_frame = ttk.Frame(popup, padding="15"); form_frame.pack(fill="both", expand=True)
-
-        def add_sys_row(parent, label, var, unit=None, is_dropdown=False, options=None):
+        
+        def add_api_row(parent, label, var, unit=None, notes=None, is_key=False):
             row_frame = ttk.Frame(parent); row_frame.pack(fill="x", pady=5)
-            ttk.Label(row_frame, text=label, width=30, anchor='w').pack(side='left')
-            if is_dropdown:
-                 widget = ttk.Combobox(row_frame, textvariable=var, values=options, state="readonly", width=15)
-            else:
-                 widget = ttk.Entry(row_frame, textvariable=var, width=15)
-            widget.pack(side='left', padx=(5, 5))
+            ttk.Label(row_frame, text=label, width=25, anchor='w').pack(side='left')
+            entry = ttk.Entry(row_frame, textvariable=var, width=(60 if is_key else 15))
+            entry.pack(side='left', padx=(5, 5), fill=('x' if is_key else 'none'), expand=is_key)
             if unit: ttk.Label(row_frame, text=unit).pack(side='left')
+            if notes: ttk.Label(parent, text=notes, font=('TkDefaultFont', 8, 'italic'), wraplength=400).pack(anchor='w', padx=(5, 5)) 
         
-        # --- Compressor Protection ---
-        ttk.Label(form_frame, text="Compressor Protection (Input in Minutes)", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
-        add_sys_row(form_frame, "Dwell Time (Min On/Off Cycle):", self.dwell_time_min_var, unit="minutes")
-        add_sys_row(form_frame, "Max Run Time:", self.max_run_time_min_var, unit="minutes")
-        add_sys_row(form_frame, "Fail-Safe Shutdown Time:", self.fail_safe_shutdown_min_var, unit="minutes")
-        
-        # --- Temperature Sensors ---
+        add_api_row(form_frame, "API Key:", self.api_key_var, is_key=True)
+        add_api_row(form_frame, "API Call Frequency:", self.api_freq_min_var, unit="minutes", notes="Data refresh rate for OG/SG/Temp.")
+        ttk.Checkbutton(form_frame, text="Enable API call logging to System Messages", variable=self.api_logging_var).pack(anchor='w', padx=5, pady=(5, 0))
         ttk.Separator(form_frame, orient='horizontal').pack(fill='x', pady=10)
-        ttk.Label(form_frame, text="Temperature Sensor Assignment", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
-        
-        available_sensors = self.temp_controller.detect_ds18b20_sensors()
-        sensor_options = ["unassigned"] + (available_sensors if available_sensors else ["No sensors found"])
-
-        add_sys_row(form_frame, "Beer Temp Sensor ID:", self.beer_sensor_var, is_dropdown=True, options=sensor_options)
-        add_sys_row(form_frame, "Ambient Temp Sensor ID:", self.ambient_sensor_var, is_dropdown=True, options=sensor_options)
-        
-        # --- MODIFICATION: Removed Debugging Section & Checkbox ---
-        # ttk.Separator(form_frame, orient='horizontal').pack(fill='x', pady=10)
-        # ttk.Label(form_frame, text="Debugging", ...).pack(...)
-        # ttk.Checkbutton(form_frame, ...).pack(...)
-        # --- END MODIFICATION ---
+        ttk.Label(form_frame, text="Final Gravity Calculation Parameters", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
+        add_api_row(form_frame, "FG Check Frequency:", self.fg_check_freq_h_var, unit="hours", notes="How often the scheduler runs the FG stability analysis.")
+        add_api_row(form_frame, "SG Range Tolerance:", self.fg_tolerance_var, notes="Max allowed change in SG (e.g., 0.0005).")
+        add_api_row(form_frame, "SG Records Window:", self.fg_window_size_var, notes="Number of consecutive readings to check (e.g., 450).")
+        add_api_row(form_frame, "Max SG Outliers:", self.fg_max_outliers_var, notes="Maximum readings outside tolerance allowed in window.")
         
         btns_frame = ttk.Frame(popup, padding="10"); btns_frame.pack(fill="x", side="bottom")
-        ttk.Button(btns_frame, text="Save", command=lambda: self._save_system_settings(popup)).pack(side="right", padx=5)
+        
+        # --- FIX: Updated to use the new centralized help method ---
+        ttk.Button(btns_frame, text="Help", command=lambda: self._open_help_popup("api")).pack(side="left", padx=5)
+        
+        ttk.Button(btns_frame, text="Save", command=lambda: self._save_api_settings(popup)).pack(side="right", padx=5)
         ttk.Button(btns_frame, text="Cancel", command=popup.destroy).pack(side="right")
         
-        # --- MODIFICATION: Use dynamic centering ---
-        popup.update_idletasks()
-        popup_width = 500
-        popup_height = popup.winfo_height()
-        self._center_popup(popup, popup_width, popup_height)
-        # --- END MODIFICATION ---
+        popup.update_idletasks(); popup.withdraw()
+        self._center_popup(popup, 600, popup.winfo_height())
         
     def _save_system_settings(self, popup):
         try:
@@ -1180,46 +1055,30 @@ class PopupManager:
             messagebox.showerror("Input Error", f"Please enter valid whole numbers for times. ({e})", parent=popup)
             
     def _open_brew_sessions_popup(self):
-        popup = tk.Toplevel(self.root)
-        popup.title("Brew Sessions")
-        # --- MODIFICATION: Removed initial geometry ---
-        popup.transient(self.root); popup.grab_set()
-
-        form_frame = ttk.Frame(popup, padding="15"); 
-        form_frame.pack(fill="both", expand=True)
-
-        # Retrieve current titles (a list of strings)
+        popup = tk.Toplevel(self.root); popup.title("Brew Sessions"); popup.transient(self.root); popup.grab_set()
+        form_frame = ttk.Frame(popup, padding="15"); form_frame.pack(fill="both", expand=True)
         current_sessions = self.settings_manager.brew_sessions
         
-        ttk.Label(form_frame, text="Used when API mode is OFF or API brew session data is unavailable or invalid.", 
-                  font=('TkDefaultFont', 9, 'italic')).grid(row=0, column=0, columnspan=1, sticky='w', pady=(0, 10))
+        ttk.Label(form_frame, text="Used when API mode is OFF.", font=('TkDefaultFont', 9, 'italic')).grid(row=0, column=0, sticky='w', pady=(0, 10))
 
-        # Populate fields and store references
         self.brew_input_widgets = []
         for i in range(10):
-            # Load existing title or default empty string
-            session_title = current_sessions[i] if i < len(current_sessions) else ""
-            self.brew_session_vars[i].set(session_title)
-            
-            # Entry Widget (Now only a single column for input fields)
+            self.brew_session_vars[i].set(current_sessions[i] if i < len(current_sessions) else "")
             entry = ttk.Entry(form_frame, textvariable=self.brew_session_vars[i], width=50)
             entry.grid(row=i+1, column=0, sticky='ew', padx=5, pady=2)
             self.brew_input_widgets.append(entry)
 
-        form_frame.grid_columnconfigure(0, weight=1) # Only one column needs to expand
-
-        # Buttons
-        btns_frame = ttk.Frame(popup, padding="10"); 
-        btns_frame.pack(fill="x", side="bottom")
+        form_frame.grid_columnconfigure(0, weight=1)
+        btns_frame = ttk.Frame(popup, padding="10"); btns_frame.pack(fill="x", side="bottom")
         ttk.Button(btns_frame, text="Save", command=lambda: self._save_brew_sessions(popup)).pack(side="right", padx=5)
         ttk.Button(btns_frame, text="Cancel", command=popup.destroy).pack(side="right")
+
+        # HELP BUTTON (Linked to 'brew_sessions' section)
+        ttk.Button(btns_frame, text="Help", width=8,
+                   command=lambda: self._open_help_popup("brew_sessions")).pack(side="right", padx=5)
         
-        # --- MODIFICATION: Use dynamic centering ---
-        popup.update_idletasks()
-        popup_width = 550
-        popup_height = popup.winfo_height()
-        self._center_popup(popup, popup_width, popup_height)
-        # --- END MODIFICATION ---
+        popup.update_idletasks(); popup.withdraw()
+        self._center_popup(popup, 550, popup.winfo_height())
     
     def _save_brew_sessions(self, popup):
         try:
@@ -1276,21 +1135,17 @@ class PopupManager:
             return # Already loaded
             
         try:
-            # --- MODIFICATION ---
-            # Get the directory where the currently executing script is located
             base_dir = os.path.dirname(os.path.abspath(__file__))
             # Path is now relative to the script: <script_dir>/assets/wiring.gif
             image_path = os.path.join(base_dir, "assets", "wiring.gif")
-            # --- END MODIFICATION ---
             
             # Use tk.PhotoImage directly, which supports GIF natively
             self.wiring_diagram_image = tk.PhotoImage(file=image_path)
             
         except FileNotFoundError:
             self.ui.log_system_message("Error: wiring.gif image not found.")
-            self.wiring_diagram_image = None # Ensure it's None
+            self.wiring_diagram_image = None
         except tk.TclError as e:
-            # This is the error tk.PhotoImage throws for bad files
             self.ui.log_system_message(f"Error loading wiring.gif (is it a valid GIF?): {e}")
             self.wiring_diagram_image = None
         except Exception as e:
@@ -1298,79 +1153,39 @@ class PopupManager:
             self.wiring_diagram_image = None
 
     def _open_wiring_diagram_popup(self):
-        popup = tk.Toplevel(self.root)
-        popup.title("Wiring Diagram")
-        popup.transient(self.root); popup.grab_set()
-
-        # Load the image
+        popup = tk.Toplevel(self.root); popup.title("Wiring Diagram"); popup.transient(self.root); popup.grab_set()
         self._load_wiring_diagram_image() 
+        main_frame = ttk.Frame(popup, padding="15"); main_frame.pack(fill="both", expand=True)
 
-        # Main frame with 15px padding
-        main_frame = ttk.Frame(popup, padding="15")
-        main_frame.pack(fill="both", expand=True)
-
-        # --- Image container frame ---
-        # SIZING: 720 - 30 (padding) = 690
-        # Height is 520 to fit in a 600px window with buttons
         image_frame = ttk.Frame(main_frame, width=690, height=520, relief="sunken", borderwidth=1)
-        image_frame.pack(fill="both", expand=True)
-        
-        # This prevents the frame from shrinking to fit its contents
-        image_frame.pack_propagate(False) 
+        image_frame.pack(fill="both", expand=True); image_frame.pack_propagate(False) 
 
         if self.wiring_diagram_image:
-            # --- START: Scrolling Logic ---
             canvas = tk.Canvas(image_frame)
             v_scroll = ttk.Scrollbar(image_frame, orient="vertical", command=canvas.yview)
             h_scroll = ttk.Scrollbar(image_frame, orient="horizontal", command=canvas.xview)
             canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
-
             canvas.grid(row=0, column=0, sticky="nsew")
             v_scroll.grid(row=0, column=1, sticky="ns")
             h_scroll.grid(row=1, column=0, sticky="ew")
-            
-            image_frame.grid_rowconfigure(0, weight=1)
-            image_frame.grid_columnconfigure(0, weight=1)
-
+            image_frame.grid_rowconfigure(0, weight=1); image_frame.grid_columnconfigure(0, weight=1)
             image_label = ttk.Label(canvas, image=self.wiring_diagram_image)
             canvas.create_window((0, 0), window=image_label, anchor="nw")
-
-            def on_configure(event):
-                canvas.config(scrollregion=canvas.bbox("all"))
-            
-            image_label.bind('<Configure>', on_configure)
-            # --- END: Scrolling Logic ---
-            
+            image_label.bind('<Configure>', lambda e: canvas.config(scrollregion=canvas.bbox("all")))
         else:
-            # Placeholder text if image not found
-            placeholder_text = "[ wiring.gif not found ]\n\nPlace wiring.gif in the 'assets' folder."
-            placeholder_label = ttk.Label(image_frame, text=placeholder_text, anchor="center", justify="center")
-            placeholder_label.pack(expand=True)
+            ttk.Label(image_frame, text="[ wiring.gif not found ]", anchor="center").pack(expand=True)
 
-        # --- Button frame (with new button) ---
-        btns_frame = ttk.Frame(main_frame, padding=(0, 10, 0, 0)) # Padding on top
-        btns_frame.pack(fill="x", side="bottom")
-
-        # "Close" button
+        btns_frame = ttk.Frame(main_frame, padding=(0, 10, 0, 0)); btns_frame.pack(fill="x", side="bottom")
         ttk.Button(btns_frame, text="Close", command=popup.destroy).pack(side="right")
-
-        # "Open in Image Viewer" button
         if self.wiring_diagram_image:
-            ttk.Button(btns_frame, text="Open in Image Viewer", 
-                       command=self._open_native_viewer).pack(side="left")
+            ttk.Button(btns_frame, text="Open in Image Viewer", command=self._open_native_viewer).pack(side="left")
+        
+        # HELP BUTTON (Linked to 'wiring' section)
+        ttk.Button(btns_frame, text="Help", width=8,
+                   command=lambda: self._open_help_popup("wiring")).pack(side="right", padx=5)
 
-        # --- Finalize sizing and centering ---
-        popup.update_idletasks()
-        
-        # SIZING: Force the final popup window to 680x520
-        popup_width = 680 
-        popup_height = 520
-        
-        # Hide the popup *after* getting its size
-        popup.withdraw()
-        
-        # Center and reveal
-        self._center_popup(popup, popup_width, popup_height)
+        popup.update_idletasks(); popup.withdraw()
+        self._center_popup(popup, 680, 520)
 
     def _open_native_viewer(self):
         # --- PATH FIX: Use the *exact same logic* as _load_wiring_diagram_image ---
@@ -1524,14 +1339,75 @@ class PopupManager:
         self._center_popup(popup, popup_width, popup_height)
         # --- END MODIFICATION ---
         
-    def _open_help_popup(self):
+    def _open_help_popup(self, section_name="main"):
         """
-        [MODIFIED IMPLEMENTATION]
-        Loads the 'main' help text from the consolidated file.
+        Loads the help text for a specific section. 
+        Defaults to 'main' table of contents.
         """
-        help_text = self._get_help_section("main")
-        self._create_formatted_help_popup("Fermentation Vault - Help", help_text)       
-    
+        help_text = self._get_help_section(section_name)
+        
+        # Map internal section names to human-readable window titles
+        titles = {
+            "main": "FermVault - Help",
+            "setpoints": "Help: Setpoints",
+            "pid": "Help: PID Tuning",
+            "notifications": "Help: Notifications",
+            "api": "Help: API & FG Settings",
+            "system": "Help: System Settings",
+            "brew_sessions": "Help: Brew Sessions",
+            "wiring": "Help: Wiring Diagram"
+        }
+        
+        title = titles.get(section_name, "FermVault Help")
+        self._create_formatted_help_popup(title, help_text)
+
+    def _on_link_click(self, url):
+        """
+        Handles link clicks in the help window.
+        'section:name' stays in-app; others open in browser.
+        """
+        if url.startswith("section:"):
+            section_name = url.split(":", 1)[1]
+            
+            # Find the top-level help window (active window) and close it
+            top = self.root.focus_get().winfo_toplevel()
+            if top:
+                top.destroy()
+                
+            # Open the new section
+            self.root.after(50, lambda: self._open_help_popup(section_name))
+        else:
+            try:
+                webbrowser.open_new(url)
+            except Exception as e:
+                print(f"Error opening link: {e}")
+
+    def _get_help_section(self, section_name):
+        """
+        Loads the consolidated help.txt file and extracts a specific section.
+        """
+        try:
+            # Calculate path relative to this script
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            help_file_path = os.path.join(base_dir, "assets", "help.txt")
+            
+            with open(help_file_path, 'r', encoding='utf-8') as f:
+                full_help_text = f.read()
+            
+            # Regex to find [SECTION: name] ... [SECTION: or EOF
+            pattern = re.compile(r'\[SECTION:\s*' + re.escape(section_name) + r'\](.*?)(?=\[SECTION:|\Z)', re.S)
+            match = pattern.search(full_help_text)
+            
+            if match:
+                return match.group(1).strip()
+            else:
+                return f"## ERROR ##\nSection '[SECTION: {section_name}]' not found in help.txt."
+                
+        except FileNotFoundError:
+            return "## ERROR ##\nConsolidated 'assets/help.txt' file not found."
+        except Exception as e:
+            return f"## ERROR ##\nAn error occurred loading the help file:\n{e}"
+                
     def _get_git_commit_hash(self):
         """Gets the short commit hash using git."""
         try:
@@ -1701,42 +1577,10 @@ class PopupManager:
         popup_height = 520
         self._center_popup(popup, popup_width, popup_height)
     
-    def _get_help_section(self, section_name):
-        """
-        Loads the consolidated help.txt file and extracts a specific section.
-        Sections are defined by [SECTION: section_name].
-        """
-        try:
-            # --- MODIFICATION ---
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            # Path is now src/assets/help.txt
-            help_file_path = os.path.join(base_dir, "assets", "help.txt") # New file name
-            # --- END MODIFICATION ---
-            
-            with open(help_file_path, 'r', encoding='utf-8') as f:
-                full_help_text = f.read()
-            
-            # Use regex to find the section
-            # Pattern: [SECTION: section_name] ...content... [SECTION: ...or EOF
-            # re.S (DOTALL) makes '.' match newlines
-            pattern = re.compile(r'\[SECTION:\s*' + re.escape(section_name) + r'\](.*?)(?=\[SECTION:|\Z)', re.S)
-            match = pattern.search(full_help_text)
-            
-            if match:
-                return match.group(1).strip() # Return the content
-            else:
-                return f"## ERROR ##\nSection '[SECTION: {section_name}]' not found in help.txt."
-                
-        except FileNotFoundError:
-            return "##ERROR##\nConsolidated 'help.txt' file not found."
-        except Exception as e:
-            return f"##ERROR##\nAn error occurred loading the help file:\n{e}"
-
 # --- NEW: PID & TUNING POPUP ---
     
     def _open_pid_tuning_popup(self):
-        
-        # --- 1. Entrance Gate ---
+        # --- 1. Entrance Gate (Restored Original Text) ---
         title = "Expert Settings Warning"
         message = ("WARNING! These settings are for expert users only. "
                    "Improper settings may produce unexpected results and "
@@ -1748,85 +1592,52 @@ class PopupManager:
             return # User clicked Cancel
 
         # --- 2. Create Popup ---
-        # --- MODIFICATION: Removed initial geometry ---
         popup = tk.Toplevel(self.root); popup.title("PID & Tuning"); popup.transient(self.root); popup.grab_set()
-        
-        # --- 3. Load Values ---
         self._load_pid_tuning_vars()
         
-        # --- 4. Build UI ---
-        
-        # Main frame holds the Notebook and the Buttons
         main_frame = ttk.Frame(popup, padding=(15, 15, 15, 0)); main_frame.pack(fill="both", expand=True)
+        notebook = ttk.Notebook(main_frame); notebook.pack(fill="both", expand=True, pady=(0, 15))
         
-        # Create the Notebook (Tabs)
-        notebook = ttk.Notebook(main_frame)
-        notebook.pack(fill="both", expand=True, pady=(0, 15))
+        pid_tab = ttk.Frame(notebook, padding="15"); notebook.add(pid_tab, text='PID Settings')
+        tuning_tab = ttk.Frame(notebook, padding="15"); notebook.add(tuning_tab, text='Tuning Parameters')
         
-        # Create Tab 1: PID Settings
-        pid_tab = ttk.Frame(notebook, padding="15")
-        notebook.add(pid_tab, text='PID Settings')
-        
-        # Create Tab 2: Tuning Parameters
-        tuning_tab = ttk.Frame(notebook, padding="15")
-        notebook.add(tuning_tab, text='Tuning Parameters')
-        
-        # --- Helper for adding rows ---
         def add_tuning_row(parent, label, var, unit=None):
             row_frame = ttk.Frame(parent); row_frame.pack(fill="x", pady=4)
             ttk.Label(row_frame, text=label, width=30, anchor='w').pack(side='left')
-            entry = ttk.Entry(row_frame, textvariable=var, width=10)
-            entry.pack(side='left', padx=(5, 5))
+            ttk.Entry(row_frame, textvariable=var, width=10).pack(side='left', padx=(5, 5))
             if unit: ttk.Label(row_frame, text=unit).pack(side='left')
 
-        # --- Populate Tab 1: PID Settings ---
         add_tuning_row(pid_tab, "Proportional (Kp)", self.pid_kp_var)
         add_tuning_row(pid_tab, "Integral (Ki)", self.pid_ki_var)
         add_tuning_row(pid_tab, "Derivative (Kd)", self.pid_kd_var)
-        
         ttk.Separator(pid_tab, orient='horizontal').pack(fill='x', pady=10)
-        
-        # --- MODIFICATION: Renamed section and checkbox text ---
         ttk.Label(pid_tab, text="Data Logging", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
-        ttk.Checkbutton(pid_tab, 
-                        text="Log data for PID & Tuning analysis (pid_tuning_log.csv)", 
-                        variable=self.pid_logging_var).pack(anchor='w', padx=5, pady=5)
-        # --- END MODIFICATION ---
+        ttk.Checkbutton(pid_tab, text="Log data for PID & Tuning analysis (pid_tuning_log.csv)", variable=self.pid_logging_var).pack(anchor='w', padx=5, pady=5)
 
-        # --- Populate Tab 2: Tuning Parameters ---
         add_tuning_row(tuning_tab, "PID Idle Zone (All Modes)", self.pid_idle_zone_var, unit="F")
         ttk.Separator(tuning_tab, orient='horizontal').pack(fill='x', pady=10)
-        
         add_tuning_row(tuning_tab, "Ambient Mode Deadband", self.ambient_deadband_var, unit="F")
         ttk.Separator(tuning_tab, orient='horizontal').pack(fill='x', pady=10)
-        
         add_tuning_row(tuning_tab, "Standard PID Envelope (Beer/Ramp)", self.beer_pid_envelope_width_var, unit="F")
         ttk.Separator(tuning_tab, orient='horizontal').pack(fill='x', pady=10)
-
         add_tuning_row(tuning_tab, "Crash Mode Envelope Width", self.crash_pid_envelope_width_var, unit="F")
         ttk.Separator(tuning_tab, orient='horizontal').pack(fill='x', pady=10)
-        
         add_tuning_row(tuning_tab, "Ramp: Pre-Ramp Tolerance", self.ramp_pre_ramp_tolerance_var, unit="F")
         add_tuning_row(tuning_tab, "Ramp: Thermostatic Deadband", self.ramp_thermo_deadband_var, unit="F")
         add_tuning_row(tuning_tab, "Ramp: PID Landing Zone", self.ramp_pid_landing_zone_var, unit="F")
 
-        # --- 5. Buttons (Placed OUTSIDE the notebook) ---
         btns_frame = ttk.Frame(popup, padding="10"); btns_frame.pack(fill="x", side="bottom")
-        
-        # Right-justified buttons
         ttk.Button(btns_frame, text="Save", command=lambda: self._save_pid_tuning_settings(popup)).pack(side="right", padx=5)
         ttk.Button(btns_frame, text="Cancel", command=popup.destroy).pack(side="right")
         
-        # Left-justified buttons
-        ttk.Button(btns_frame, text="Help", command=self._open_pid_tuning_help).pack(side="left", padx=5)
+        # HELP BUTTON (Linked to 'pid' section)
+        ttk.Button(btns_frame, text="Help", width=8,
+                   command=lambda: self._open_help_popup("pid")).pack(side="left", padx=5)
+
         ttk.Button(btns_frame, text="Reset to Defaults", command=self._reset_pid_tuning_to_defaults).pack(side="left")
 
-        # --- MODIFICATION: Use dynamic centering ---
-        popup.update_idletasks()
-        popup_width = 500
-        popup_height = popup.winfo_height()
-        self._center_popup(popup, popup_width, popup_height)
-        # --- END MODIFICATION ---
+        popup.update_idletasks(); popup.withdraw()
+        self._center_popup(popup, 500, popup.winfo_height())
 
     def _load_pid_tuning_vars(self):
         """Helper to load all 10 tuning values + 1 checkbox from settings_manager."""
@@ -1987,23 +1798,7 @@ class PopupManager:
         # --- MODIFICATION: Reset PID logging var ---
         self.pid_logging_var.set(False)
         # --- END MODIFICATION ---
-        
-    def _open_pid_tuning_help(self):
-        """
-        [MODIFIED IMPLEMENTATION]
-        Loads the 'pid' help text from the consolidated file.
-        """
-        help_text = self._get_help_section("pid")
-        self._create_formatted_help_popup("PID & Tuning Help", help_text)
-        
-    def _open_api_help_popup(self):
-        """
-        [MODIFIED IMPLEMENTATION]
-        Loads the 'api' help text from the consolidated file.
-        """
-        help_text = self._get_help_section("api")
-        self._create_formatted_help_popup("API & FG Help", help_text) 
-
+                
     # --- EULA / SUPPORT POPUP ---
 
     def _load_support_image(self):
@@ -2012,22 +1807,17 @@ class PopupManager:
             return # Already loaded
             
         try:
-            # --- MODIFICATION ---
             base_dir = os.path.dirname(os.path.abspath(__file__))
             # Path is now src/assets/support.gif
             image_path = os.path.join(base_dir, "assets", "support.gif")
-            # --- END MODIFICATION ---
             
-            # --- THIS IS THE CHANGE ---
             # Use tk.PhotoImage directly, which supports GIF natively
             self.support_qr_image = tk.PhotoImage(file=image_path)
-            # --- END CHANGE ---
             
         except FileNotFoundError:
             self.ui.log_system_message("Error: support.gif image not found.")
-            self.support_qr_image = None # Ensure it's None
+            self.support_qr_image = None
         except tk.TclError as e:
-            # This is the error tk.PhotoImage throws for bad files
             self.ui.log_system_message(f"Error loading support.gif (is it a valid GIF?): {e}")
             self.support_qr_image = None
         except Exception as e:
