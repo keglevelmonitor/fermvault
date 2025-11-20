@@ -49,6 +49,7 @@ Two user-adjustable setpoints, one for ambient and one for beer, specify the tar
 ## Settings Menus ##
 Popups called from the Settings menu allow you to adjust system parameters and view important information about the app. 
 
+[<< Back to Help Index](section:main)
 [SECTION: setpoints]
 ## Operational Controls & Modes ##
 Two user-adjustable setpoints, one for ambient and one for beer, specify the target temperature. The control mode determines how the setpoints and actual measurements are used to reach and maintain the target temperature.  
@@ -69,6 +70,7 @@ The beer setpoint is the starting target, the ramp-up setpoint is the end target
 **Crash Control Mode**
 The function of this mode is to quickly decrease the actual beer temperature to achieve the target. The crash setpoint is the target. The control system turns the heating/cooling relays on and off to achieve and maintain the target with the assistance of the ambient temperature measurement and the PID algorithm. Just like the beer control mode, the PID algorithm allows the vault to get very cold, well below freezing if necessary, in order to bring the beer to target as quickly as possible. The PID algorithm brings the deadband closer to the actual beer temperature as it approaches the target, limiting undershoot and thereby virtually eliminating the risk of freezing the beer. 
 
+[<< Back to Help Index](section:main)
 [SECTION: pid]
 ##WARNING - EXPERT SETTINGS##
 
@@ -160,6 +162,8 @@ This mode is a 3-stage process. These parameters control the "gates" between tho
 
 	* **Ramp: PID Landing Zone:** This is the trigger (in F) for this stage. When the moving target is this close to the final "Ramp Temp" (e.g., 0.5 F away), the system will switch from Thermostatic to PID control.
 
+[<< Back to Help Index](section:main)
+
 [SECTION: notifications]
 ## Notifications ##
 Configure how the app alerts you.
@@ -183,6 +187,8 @@ This feature allows you to send emails **TO** the Pi to request a status update 
 Notifications require a valid SMTP configuration (for outgoing) and IMAP configuration (for incoming) in the "RPi Email Configuration" tab.
 
 It is recommended that you use a dedicated email account set up exclusively for use by this app. If you use your personal email for this feature, then every minute your email account's inbox will be scanned. New messages will be marked as read. The app will try to find any email with Status or Command. You don't want the app running through your personal emails and marking them read and looking for valid commands for the app. Use an email account dedicated for use by this app only.
+
+[<< Back to Help Index](section:main)
 
 [SECTION: api]
 ## API Services ##
