@@ -83,42 +83,76 @@ class FGCalculator:
             # --- END MODIFICATION ---
             
     def _analyze_fermentation(self, data, tolerance, window_size, max_outliers):
-        """Analyzes the specific gravity data for stability, allowing for outliers."""
+        """
+        Analyzes the specific gravity data for stability using an optimized Sliding Window algorithm.
+        Iterates from NEWEST to OLDEST.
+        Includes thread yielding to prevent UI freeze during long history scans.
+        """
+        # 1. Filter valid readings
+        all_readings = data.get('readings', [])
+        valid_readings = [r for r in all_readings if r.get('gravity') is not None]
+        sg_values = [r.get('gravity') for r in valid_readings]
         
-        sg_values = [item.get('gravity') for item in data.get('readings', []) if item.get('gravity') is not None]
-
-        if len(sg_values) < window_size:
-            # --- MODIFICATION: Simplified error message ---
+        N = len(sg_values)
+        if N < window_size:
             return {"overall_stable": False, "error": "Not enough data"}
-            # --- END MODIFICATION ---
 
-        # The loop runs backward from the most recent data
-        for i in range(len(sg_values) - window_size + 1):
-            window_start_index = i
-            window = sg_values[window_start_index:window_start_index + window_size]
-            outlier_count = 0
+        # 2. Initialize the FIRST window (The Newest Window)
+        # Indices: [N-window_size ... N-1]
+        current_start_index = N - window_size
+        current_window = sg_values[current_start_index : N]
+        current_outliers = 0
+        
+        # Calculate initial outliers for the newest window
+        for j in range(len(current_window) - 1):
+            if abs(current_window[j+1] - current_window[j]) > tolerance:
+                current_outliers += 1
+
+        # Check if the newest window is stable
+        if current_outliers <= max_outliers:
+            return self._format_result(valid_readings, current_start_index, window_size, current_window)
+
+        # 3. Sliding Window Loop (Backwards)
+        # We slide the window to the LEFT (towards the past).
+        for i in range(N - window_size - 1, -1, -1):
             
-            # Check difference between adjacent points in the window
-            for j in range(len(window) - 1):
-                difference = abs(window[j+1] - window[j])
-                if difference > tolerance:
-                    outlier_count += 1
+            # --- FIX: Yield to UI thread every 500 iterations ---
+            # This prevents the calculation from "starving" the UI and making it look frozen.
+            if i % 500 == 0:
+                time.sleep(0)
+            # ----------------------------------------------------
 
-            if outlier_count <= max_outliers:
-                # Stability window found
-                first_reading = data['readings'][window_start_index]
-                last_reading = data['readings'][window_start_index + window_size - 1]
-                
-                average_sg = sum(window) / len(window)
+            # A. HANDLE RIGHT EDGE (Leaving the window)
+            val_right_1 = sg_values[i + window_size - 1]
+            val_right_2 = sg_values[i + window_size]
+            if abs(val_right_2 - val_right_1) > tolerance:
+                current_outliers -= 1 
 
-                return {
-                    "overall_stable": True,
-                    "first_timestamp": first_reading.get('created_at'),
-                    "last_timestamp": last_reading.get('created_at'),
-                    "average_sg": average_sg,
-                }
+            # B. HANDLE LEFT EDGE (Entering the window)
+            val_left_1 = sg_values[i]
+            val_left_2 = sg_values[i+1]
+            if abs(val_left_2 - val_left_1) > tolerance:
+                current_outliers += 1 
+            
+            # C. Check Stability
+            if current_outliers <= max_outliers:
+                found_window = sg_values[i : i + window_size]
+                return self._format_result(valid_readings, i, window_size, found_window)
 
         return {"overall_stable": False}
+
+    def _format_result(self, valid_readings, start_index, window_size, window_values):
+        """Helper to format the success response."""
+        first_reading = valid_readings[start_index]
+        last_reading = valid_readings[start_index + window_size - 1]
+        average_sg = sum(window_values) / len(window_values)
+
+        return {
+            "overall_stable": True,
+            "first_timestamp": first_reading.get('created_at'),
+            "last_timestamp": last_reading.get('created_at'),
+            "average_sg": average_sg,
+        }
         
     def calculate_fg(self):
         """Main routine to fetch, process, and return FG calculation results."""

@@ -779,10 +779,20 @@ class MainUIBase:
             self.system_message_area.config(state='normal')
             self.system_message_area.insert("1.0", log_entry) # Insert at the top
             self.system_message_area.config(state='disabled')
-    # ---------------------------------------------
+            
+            # --- FIX: Force immediate repaint ---
+            # This ensures the text appears immediately even if the main loop is busy
+            self.system_message_area.update_idletasks() 
+            # ------------------------------------
 
     def log_system_message(self, message):
-        self.ui_update_queue.put(("log_message", (message,)))
+        """
+        Public method to log messages from any thread (Main, Monitor, or API).
+        Uses root.after() to safely schedule the update on the main UI thread.
+        """
+        if self.root and hasattr(self.root, 'after'):
+            # Schedule the internal private method to run ASAP on the main thread
+            self.root.after(0, self._log_system_message, message)
 
     def push_data_update(self, **kwargs):
         """
