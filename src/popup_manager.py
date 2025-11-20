@@ -1824,6 +1824,90 @@ class PopupManager:
             self.ui.log_system_message(f"Error loading support image: {e}")
             self.support_qr_image = None
             
+    # --- SYSTEM SETTINGS ---
+    def _open_system_settings_popup(self):
+        popup = tk.Toplevel(self.root)
+        popup.title("System Settings")
+        popup.transient(self.root)
+        popup.grab_set()
+        
+        # 1. Load Current Settings
+        comp_settings = self.settings_manager.get_all_compressor_protection_settings()
+        
+        # Convert seconds (stored) to minutes (displayed)
+        self.dwell_time_min_var.set(str(int(comp_settings['cooling_dwell_time_s'] / 60)))
+        self.max_run_time_min_var.set(str(int(comp_settings['max_cool_runtime_s'] / 60)))
+        self.fail_safe_shutdown_min_var.set(str(int(comp_settings['fail_safe_shutdown_time_s'] / 60)))
+
+        current_beer_sensor = self.settings_manager.get("ds18b20_beer_sensor", "unassigned")
+        current_amb_sensor = self.settings_manager.get("ds18b20_ambient_sensor", "unassigned")
+        
+        self.beer_sensor_var.set(current_beer_sensor)
+        self.ambient_sensor_var.set(current_amb_sensor)
+        
+        # 2. Detect Sensors for Dropdowns
+        available_sensors = ["unassigned"]
+        try:
+            detected = self.temp_controller.detect_ds18b20_sensors()
+            if detected:
+                available_sensors.extend(detected)
+        except Exception as e:
+            print(f"Error detecting sensors: {e}")
+            
+        # Ensure current selection is in the list (even if not currently detected)
+        if current_beer_sensor not in available_sensors:
+            available_sensors.append(current_beer_sensor)
+        if current_amb_sensor not in available_sensors and current_amb_sensor != current_beer_sensor:
+             available_sensors.append(current_amb_sensor)
+
+        # 3. Build UI
+        form_frame = ttk.Frame(popup, padding="15")
+        form_frame.pack(fill="both", expand=True)
+        
+        # -- Compressor Section --
+        ttk.Label(form_frame, text="Compressor Protection", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
+        
+        def add_row(parent, label, var, unit="minutes"):
+            row = ttk.Frame(parent)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=label, width=30, anchor='w').pack(side='left')
+            ttk.Entry(row, textvariable=var, width=10).pack(side='left', padx=(5, 5))
+            ttk.Label(row, text=unit).pack(side='left')
+
+        add_row(form_frame, "Cooling Dwell Time:", self.dwell_time_min_var)
+        add_row(form_frame, "Max Cool Runtime:", self.max_run_time_min_var)
+        add_row(form_frame, "Fail-Safe Shutdown Time:", self.fail_safe_shutdown_min_var)
+        
+        ttk.Separator(form_frame, orient='horizontal').pack(fill='x', pady=15)
+        
+        # -- Sensor Section --
+        ttk.Label(form_frame, text="Sensor Assignment (DS18B20)", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
+        
+        def add_sensor_row(parent, label, var, options):
+            row = ttk.Frame(parent)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=label, width=30, anchor='w').pack(side='left')
+            cb = ttk.Combobox(row, textvariable=var, values=options, state="readonly", width=25)
+            cb.pack(side='left', padx=(5, 5))
+            return cb
+
+        add_sensor_row(form_frame, "Beer Sensor:", self.beer_sensor_var, available_sensors)
+        add_sensor_row(form_frame, "Ambient Sensor:", self.ambient_sensor_var, available_sensors)
+
+        # 4. Buttons
+        btns_frame = ttk.Frame(popup, padding="10")
+        btns_frame.pack(fill="x", side="bottom")
+        
+        # Help Button linked to 'system' section
+        ttk.Button(btns_frame, text="Help", command=lambda: self._open_help_popup("system")).pack(side="left", padx=5)
+        
+        ttk.Button(btns_frame, text="Save", command=lambda: self._save_system_settings(popup)).pack(side="right", padx=5)
+        ttk.Button(btns_frame, text="Cancel", command=popup.destroy).pack(side="right")
+
+        popup.update_idletasks()
+        popup.withdraw()
+        self._center_popup(popup, 550, popup.winfo_height())
+        
     def _open_support_popup(self, is_launch=False):
         """
         Displays the 'Support this App' popup, which includes the EULA.

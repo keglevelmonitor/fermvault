@@ -596,6 +596,19 @@ class MainUIBase:
                 self.notification_manager.fetch_api_data_now(current_id, is_scheduled=False) 
             
         elif choice == "Update Temperature Data":
+            # --- MODIFICATION: Check for unassigned sensors and log if needed ---
+            # We check the configuration before triggering the update to ensure 
+            # the user gets immediate feedback if their settings are invalid.
+            beer_sensor = self.settings_manager.get("ds18b20_beer_sensor")
+            amb_sensor = self.settings_manager.get("ds18b20_ambient_sensor")
+            
+            if beer_sensor == "unassigned":
+                self.log_system_message("Beer sensor is unassigned. Please set in System Settings.")
+            
+            if amb_sensor == "unassigned":
+                self.log_system_message("Ambient sensor is unassigned. Please set in System Settings.")
+            # --------------------------------------------------------------------
+            
             # Forces the monitoring thread to do a synchronous sensor read and UI push
             self.temp_controller.update_control_logic_and_ui_data()
         # -------------------------
@@ -605,6 +618,13 @@ class MainUIBase:
                 self.notification_manager.send_manual_status_message()
              
         elif choice == "Reload Brew Sessions":
+             # --- MODIFICATION: Check for API OFF and log if needed ---
+             # This mirrors the error message provided by the NotificationManager
+             # when attempting other API actions while the service is OFF.
+             if self.settings_manager.get("active_api_service") == "OFF":
+                 self.log_system_message("API service is OFF. Cannot fetch data.")
+             # ---------------------------------------------------------
+             
              self._populate_brew_session_dropdown()
 
         elif choice == "Run FG Calculator":
