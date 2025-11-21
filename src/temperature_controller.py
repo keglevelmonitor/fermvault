@@ -614,10 +614,11 @@ class TemperatureController:
     def start_monitoring(self):
         if not self._monitoring:
             self._monitoring = True
-            
             self.settings_manager.set("monitoring_state", "ON")
             
-            self.relay_control.turn_on_fan()
+            # --- MODIFICATION: Removed explicit fan ON call ---
+            # self.relay_control.turn_on_fan() 
+            # -------------------------------------------------
             
             if self._monitor_thread is None or not self._monitor_thread.is_alive():
                 self._stop_event.clear() # Ensure event is cleared on start
@@ -689,7 +690,6 @@ class TemperatureController:
                         sensor_error_message = "FAIL: Ambient Sensor Unassigned"
                     else:
                         sensor_error_message = "FAIL: Ambient Sensor Missing"
-                # Note: A missing beer sensor is logged above, but is not a critical error here.
             
             elif current_mode in ["Beer Hold", "Ramp-Up", "Fast Crash"]:
                 if not current_beer_ok and not current_amb_ok:
@@ -745,7 +745,7 @@ class TemperatureController:
                 
                 # Override: Use simple thermostatic control on AMBIENT
                 target_amb_temp = beer_setpoint_current
-                DEADBAND = self.settings_manager.get("ambient_deadband", 1.0) # <-- MODIFIED
+                DEADBAND = self.settings_manager.get("ambient_deadband", 1.0) 
                 amb_min = target_amb_temp - DEADBAND
                 amb_max = target_amb_temp + DEADBAND
                 
@@ -761,7 +761,6 @@ class TemperatureController:
                 
                 desired_heat = False
                 desired_cool = False
-                # amb_min/max are already 0.0
             
             # Condition 3: No Errors (Normal Operation)
             else:
@@ -779,7 +778,7 @@ class TemperatureController:
                 # --- DETERMINE RELAY ACTIONS ---
                 if current_mode == "Ramp-Up" and amb_min is None:
                     # STATE 2: We are in the Main Ramp (Thermostatic) phase
-                    THERMOSTAT_DEADBAND = self.settings_manager.get("ramp_thermo_deadband", 0.1) # <-- MODIFIED
+                    THERMOSTAT_DEADBAND = self.settings_manager.get("ramp_thermo_deadband", 0.1) 
                     target = beer_setpoint_current # The moving target
                     
                     if beer_temp < (target - THERMOSTAT_DEADBAND):
@@ -788,7 +787,6 @@ class TemperatureController:
                     elif beer_temp > (target + THERMOSTAT_DEADBAND):
                         desired_heat = False
                         desired_cool = True
-                    # else: desired_heat/cool remain False
                 
                 else:
                     # All other modes (PID-driven ambient envelope)
@@ -800,14 +798,15 @@ class TemperatureController:
                 print("[Monitor Loop] Shutdown requested. Sending OFF commands.")
                 desired_heat = False
                 desired_cool = False
-                current_mode = "OFF" # Set mode to off for relay_control
-                sensor_error_message = "" # Clear errors on shutdown
+                current_mode = "OFF" # Set mode to off for relay_control (This triggers Aux OFF too)
+                sensor_error_message = "" 
                 if self._fail_safe_logged:
                     if self.notification_manager and self.notification_manager.ui:
                         self.notification_manager.ui.log_system_message("FAIL-SAFE: Monitoring stopped. Resuming normal shutdown.")
                     self._fail_safe_logged = False
             
             # --- 6. APPLY STATES (This section runs in ALL modes) ---
+            # The relay_control now handles the Aux relay automatically here
             final_heat, final_cool = self.relay_control.set_desired_states(
                 desired_heat, desired_cool, current_mode
             )
@@ -844,8 +843,10 @@ class TemperatureController:
             if not self._monitoring:
                 if not final_cool and not final_heat:
                     print("[Monitor Loop] Relays are safely OFF. Shutting down fan.")
-                    self.relay_control.turn_off_fan()
+                    # --- MODIFICATION: Explicit call removed; Aux handled by set_desired_states("OFF") above ---
+                    # self.relay_control.turn_off_fan()
                     
+                    # Ensure final OFF state is sent to UI
                     if self.notification_manager and self.notification_manager.ui:
                          self.notification_manager.ui.push_data_update(
                             beer_temp=beer_temp if current_beer_ok else "--.-",

@@ -44,7 +44,7 @@ class MainUIBase:
         ]
         # --- MODIFICATION END ---
         
-        # --- MODIFICATION: Updated Popup List (Adding Configuration categories) ---
+        # --- MODIFICATION: Updated Popup List ---
         self.popup_list = ["Temperature Setpoints", "PID & Tuning", "Notification Settings", "API & FG Settings", 
                            "Brew Sessions", "System Settings", "Wiring Diagram", "Help", "About", "Support this App"]
         # --- END MODIFICATION ---
@@ -55,27 +55,31 @@ class MainUIBase:
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing_ui) 
 
         # --- Primary UI Variables ---
-        # FIX: Load the previously saved session title as the initial value (or empty string if none saved)
         saved_title = settings_manager_instance.get("brew_session_title", "")
         self.brew_session_var = tk.StringVar(value=saved_title)
 
-        # FIX: Load the last saved API service name
         saved_api_service = settings_manager_instance.get("active_api_service", "OFF")
         self.api_service_var = tk.StringVar(value=saved_api_service)
         
-        # --- MODIFICATION: Removed StringVars for Combobox menus ---
-        # self.settings_menu_var = tk.StringVar(value="Select...") # REMOVED
-        # self.actions_menu_var = tk.StringVar(value="Select...") # REMOVED
-        # --- END MODIFICATION ---
-        
         self.control_mode_var = tk.StringVar()
         self.monitoring_var = tk.StringVar(value="OFF")
-        self.fan_var = tk.StringVar(value="Auto")
-        
-        # --- MODIFICATION: Added variable for new indicator ---
-        # self.monitoring_indicator_var = tk.StringVar(value="Monitoring OFF") # REMOVED
-        # ------------------------------------------------------
 
+        # --- NEW: Load Aux Relay Mode with fallback migration ---
+        saved_aux = settings_manager_instance.get("aux_relay_mode")
+        if not saved_aux:
+            # Fallback for migration: Check old key
+            old_fan = settings_manager_instance.get("fan_control_mode", "Auto")
+            if old_fan == "Auto": saved_aux = "Monitoring"
+            elif old_fan == "ON": saved_aux = "Always ON"
+            elif old_fan == "OFF": saved_aux = "Always OFF"
+            else: saved_aux = "Monitoring"
+            
+            # Save the migrated value immediately
+            settings_manager_instance.set("aux_relay_mode", saved_aux)
+            
+        self.aux_mode_var = tk.StringVar(value=saved_aux)
+        # --- END NEW ---
+        
         # --- Data Display Variables ---
         self.beer_setpoint_var = tk.StringVar(value="--.-")
         self.beer_actual_var = tk.StringVar(value="--.-")
@@ -91,41 +95,25 @@ class MainUIBase:
         self.sg_display_var = tk.StringVar(value="--.---")
         self.sg_timestamp_var = tk.StringVar(value="--:--:--")
 
-        # --- MODIFICATION: Updated FG variable defaults ---
         self.fg_status_var = tk.StringVar(value="--.---") # This is now the VALUE field
         self.fg_message_var = tk.StringVar(value="--:--:--") # This is now the MESSAGE field
-        # --- END MODIFICATION ---
         
-        # --- MODIFICATION: Added var for new ramp target field ---
         self.ramp_end_target_var = tk.StringVar(value="")
-        # --------------------------------------------------------
         
-        # --- MODIFICATION: Added for heartbeat toggle ---
         self.heartbeat_toggle = False
-        # --- END MODIFICATION ---
         
-        self.heat_state_var = tk.StringVar(value="Heating OFF") # Updated default
-        self.cool_state_var = tk.StringVar(value="Cooling OFF") # Updated default
+        self.heat_state_var = tk.StringVar(value="Heating OFF") 
+        self.cool_state_var = tk.StringVar(value="Cooling OFF") 
         
-        # --- NEW VARIABLE ---
         self.cool_restriction_var = tk.StringVar(value="")
-        # --------------------
         
         self.system_messages_var = tk.StringVar(value="System Initialized.")
         
-        # --- MODIFICATION: Removed trace for monitoring button color ---
-        
-        # --- NEW: UI Ready Flag ---
         self.ui_ready = False
-        # --- END NEW ---
         
         self.root.after_idle(self._create_widgets)
         self._poll_ui_update_queue()
-        
-        # --- MODIFICATION: Removed background sensor check call ---
-        # self._background_sensor_check() # <-- MOVED to _create_widgets
-        # --- END MODIFICATION ---
-                
+    
     def _create_widgets(self):
         # Configure styles
         s = ttk.Style(self.root)
@@ -137,17 +125,14 @@ class MainUIBase:
         s.configure('Yellow.TLabel', background='khaki1', foreground='black')
         s.configure('DarkGreen.TLabel', background='green', foreground='white')
         
-        # --- New Styles ---
         s.configure('AlertRed.TLabel', background='red', foreground='white', font=('TkDefaultFont', 10, 'bold'))
         s.configure('MediumGreen.TLabel', background='#3CB371', foreground='black')
-        # ------------------
 
         # --- Custom Combobox Styles ---
         s.map('Red.TCombobox', fieldbackground=[('readonly', 'lightcoral')]) 
         s.map('MediumGreen.TCombobox', fieldbackground=[('readonly', '#3CB371')])
         s.map('DarkGreen.TCombobox', fieldbackground=[('readonly', 'green')])
 
-        # Define a style for centering column headers
         s.configure('Center.TLabel', anchor='center')
 
         # --- Grid Setup ---
@@ -173,7 +158,6 @@ class MainUIBase:
         self.header_frame = ttk.Frame(self.main_frame)
         self.header_frame.grid(row=0, column=0, columnspan=8, sticky='ew')
         
-        # --- Header Columns ---
         self.header_frame.grid_columnconfigure(0, weight=0, minsize=80)    
         self.header_frame.grid_columnconfigure(1, weight=1, minsize=240)   
         self.header_frame.grid_columnconfigure(2, weight=0, minsize=0)     
@@ -195,14 +179,11 @@ class MainUIBase:
         self.session_dropdown.grid(row=row_idx + 1, column=1, sticky='ew', padx=5, pady=(5, 5))
         self.session_dropdown.bind("<<ComboboxSelected>>", self._handle_brew_session_change)
         
-        # Menu Container (RIGHT JUSTIFIED)
-        # Spans 2 rows to hold the vertical space, but items inside can be placed in specific rows
+        # Menu Container
         self.menu_container = ttk.Frame(self.header_frame)
         self.menu_container.grid(row=0, column=5, rowspan=2, sticky='ne', padx=5, pady=0)
-        
         self.menu_container.grid_columnconfigure(0, weight=1) 
         
-        # Load bold font helper
         try:
             default_font = tkfont.nametofont("TkDefaultFont")
             bold_font = default_font.copy()
@@ -212,7 +193,6 @@ class MainUIBase:
             self.menu_heading_font = ('TkDefaultFont', 10, 'bold')
 
         # === SINGLE MENU: SETTINGS ===
-        # Removed rowspan=2 and added pady=(5,5) to align with API dropdown
         self.settings_menubutton = ttk.Menubutton(self.menu_container, text="Settings", width=20)
         self.settings_menubutton.grid(row=0, column=0, sticky='ew', padx=2, pady=(5, 5))
         
@@ -223,14 +203,9 @@ class MainUIBase:
         settings_menu.add_command(label="Configuration", font=self.menu_heading_font, state="disabled")
         
         config_items = [
-            "Temperature Setpoints", 
-            "PID & Tuning", 
-            "Notification Settings", 
-            "API & FG Settings", 
-            "Brew Sessions", 
-            "System Settings"
+            "Temperature Setpoints", "PID & Tuning", "Notification Settings", 
+            "API & FG Settings", "Brew Sessions", "System Settings"
         ]
-        
         for item in config_items:
             if item in self.popup_list:
                 settings_menu.add_command(label=item, command=lambda choice=item: self._open_popup_by_name(choice))
@@ -239,7 +214,6 @@ class MainUIBase:
         
         # 2. Utilities Header
         settings_menu.add_command(label="Utilities", font=self.menu_heading_font, state="disabled")
-        
         settings_menu.add_command(label="Update Temperature Data", command=lambda: self._handle_actions_menu("Update Temperature Data"))
         settings_menu.add_command(label="Update API Data", command=lambda: self._handle_actions_menu("Update API Data"))
         settings_menu.add_command(label="Run FG Calculator", command=lambda: self._handle_actions_menu("Run FG Calculator"))
@@ -249,7 +223,6 @@ class MainUIBase:
         
         # 3. Maintenance Header
         settings_menu.add_command(label="Maintenance", font=self.menu_heading_font, state="disabled")
-        
         settings_menu.add_command(label="Check for Updates", command=lambda: self._handle_actions_menu("Check for Updates"))
         settings_menu.add_command(label="Reset to Defaults", command=lambda: self._handle_actions_menu("Reset to Defaults"))
         
@@ -257,11 +230,7 @@ class MainUIBase:
         
         # 4. App Info Header
         settings_menu.add_command(label="App Info", font=self.menu_heading_font, state="disabled")
-        
-        info_items = [
-            "Wiring Diagram", "Help", "About", "Support this App"
-        ]
-
+        info_items = ["Wiring Diagram", "Help", "About", "Support this App"]
         for item in info_items:
             if item in self.popup_list:
                 settings_menu.add_command(label=item, command=lambda choice=item: self._open_popup_by_name(choice))
@@ -283,8 +252,6 @@ class MainUIBase:
         ttk.Label(self.main_frame, text="Actual", style='Center.TLabel').grid(row=main_grid_row_idx, column=5, columnspan=2, padx=5, pady=5)
         
         main_grid_row_idx += 1
-        
-        # --- Vertical Padding Constant ---
         VERTICAL_PADDING = (6, 6) 
         
         # --- DATA ROW 1: Ambient ---
@@ -305,11 +272,15 @@ class MainUIBase:
 
         main_grid_row_idx += 1
         
-        # --- DATA ROW 2: Beer & Fan ---
-        ttk.Label(self.main_frame, text="Circulation Fan").grid(row=main_grid_row_idx, column=0, sticky='w', padx=5, pady=VERTICAL_PADDING)
-        self.fan_dropdown = ttk.Combobox(self.main_frame, textvariable=self.fan_var, values=["Auto", "ON", "OFF"], state="readonly", width=13)
-        self.fan_dropdown.grid(row=main_grid_row_idx, column=1, sticky='w', padx=5, pady=VERTICAL_PADDING)
-        self.fan_dropdown.bind("<<ComboboxSelected>>", self._handle_fan_mode_change)
+        # --- DATA ROW 2: Beer & Aux Relay ---
+        # --- MODIFICATION: Updated Label, Dropdown, and Binding ---
+        ttk.Label(self.main_frame, text="Aux Relay Follows").grid(row=main_grid_row_idx, column=0, sticky='w', padx=5, pady=VERTICAL_PADDING)
+        
+        aux_options = ["Always OFF", "Always ON", "Monitoring", "Heating", "Cooling", "Crashing"]
+        self.aux_dropdown = ttk.Combobox(self.main_frame, textvariable=self.aux_mode_var, values=aux_options, state="readonly", width=13)
+        self.aux_dropdown.grid(row=main_grid_row_idx, column=1, sticky='w', padx=5, pady=VERTICAL_PADDING)
+        self.aux_dropdown.bind("<<ComboboxSelected>>", self._handle_aux_mode_change)
+        # --- END MODIFICATION ---
 
         ttk.Label(self.main_frame, text="Beer").grid(row=main_grid_row_idx, column=2, sticky='e', padx=5, pady=VERTICAL_PADDING)
         self.beer_target_label = ttk.Label(self.main_frame, textvariable=self.beer_setpoint_var, style='Gray.TLabel', relief='sunken', anchor='center', width=7)
@@ -394,23 +365,30 @@ class MainUIBase:
         self.main_frame.grid_rowconfigure(main_grid_row_idx + 1, weight=1)
 
         self._refresh_ui_bindings()
-        
         self._populate_brew_session_dropdown()
         
-        # Start the notification scheduler
         if self.notification_manager:
             self.notification_manager.start_scheduler()
             
-        # Set UI Ready Flag
         self.ui_ready = True
-        
-        # Start the background check
         self.root.after(5000, self._background_sensor_check)
         
-        # Show EULA/Support Popup on Launch
         show_on_launch = self.settings_manager.get("show_eula_on_launch", True)
         if show_on_launch:
             self.root.after(100, lambda: self._open_support_popup(is_launch=True))
+            
+    def _handle_aux_mode_change(self, event):
+        selected_mode = self.aux_mode_var.get()
+        self.settings_manager.set("aux_relay_mode", selected_mode)
+        
+        # --- FIX: Force immediate update if Monitoring is OFF ---
+        # If monitoring is running, the loop picks up the change in <5s.
+        # If monitoring is OFF, we must manually trigger the relay update
+        # to apply "Always ON" or "Always OFF" immediately.
+        if self.ui.monitoring_var.get() == "OFF":
+             # Calling set_desired_states with all OFF ensures safe Heat/Cool state
+             # but allows the new Aux logic to evaluate and switch the relay immediately.
+             self.temp_controller.relay_control.set_desired_states(desired_heat=False, desired_cool=False, control_mode="OFF")
 
     def _refresh_ui_bindings(self):
         # Set initial background colors

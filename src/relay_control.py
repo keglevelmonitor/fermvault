@@ -82,36 +82,31 @@ class RelayControl:
 
     # --- RELAY CONTROL AND PROTECTION ENFORCEMENT ---
 
-    def set_desired_states(self, desired_heat, desired_cool, control_mode):
+    def set_desired_states(self, desired_heat, desired_cool, control_mode, aux_override=False):
         """
         Receives simple ON/OFF commands and executes them after enforcing constraints.
-        
-        --- FIX: Returns the final, enforced state of the relays ---
+        Returns the final, enforced state of the relays.
+        Added aux_override for Manual Test Mode.
         """
         current_time = time.time()
         
-        # --- MODIFICATION START ---
-        # 1. State/Status Initialization
+        # --- 1. State/Status Initialization ---
         is_currently_on = self._is_cooling_on()
         final_cool_state = desired_cool # Start with the initial intent
         
-        # The status message that goes to the NEW Cooling Message Area
         restriction_message = "" 
         
-        # Get protection settings
         cool_settings = self.settings.get_all_compressor_protection_settings()
         DWELL_TIME_S = cool_settings["cooling_dwell_time_s"]
         MAX_RUNTIME_S = cool_settings["max_cool_runtime_s"]
         FAIL_SAFE_SHUTDOWN_S = cool_settings["fail_safe_shutdown_time_s"]
         
-        # 2. Cooling Protection Checks (Priority Order)
+        # --- 2. Cooling Protection Checks (Priority Order) ---
         
         # A. Check Fail-Safe Shutdown Time (Is compressor currently locked out?)
         if current_time < self.cool_disabled_until:
             minutes_remaining = max(1, int((self.cool_disabled_until - current_time) / 60))
             restriction_message = f"FAIL-SAFE active until {datetime.fromtimestamp(self.cool_disabled_until).strftime('%H:%M:%S')}"
-            
-            # CRITICAL: Log this restriction to the SYSTEM MESSAGES area
             self._log_restriction_change(
                 key="fail_safe",
                 message=f"Cooling restricted by Fail-Safe for {minutes_remaining} min."
@@ -121,12 +116,9 @@ class RelayControl:
         # B. Check Max Run Time (and activate Fail-Safe if exceeded)
         elif final_cool_state and self.cool_start_time and (current_time - self.cool_start_time) >= MAX_RUNTIME_S:
             self.cool_disabled_until = current_time + FAIL_SAFE_SHUTDOWN_S
-            
             restriction_message = f"FAIL-SAFE active until {datetime.fromtimestamp(self.cool_disabled_until).strftime('%H:%M:%S')}"
             final_cool_state = False # Enforce OFF
             self.cool_start_time = None 
-            
-            # CRITICAL: Log this restriction to the SYSTEM MESSAGES area
             self._log_restriction_change(
                 key="fail_safe_triggered",
                 message=f"Cooling ran for max time. Fail-Safe enabled until {datetime.fromtimestamp(self.cool_disabled_until).strftime('%H:%M:%S')}."
@@ -137,46 +129,57 @@ class RelayControl:
             dwell_remaining = (self.last_cool_change + DWELL_TIME_S) - current_time
             
             if dwell_remaining > 0:
-                # Dwell is ACTIVE.
-                # Determine what the controller *wants* to do.
                 demand_status = "ON" if desired_cool else "OFF"
                 restriction_message = f"Demand {demand_status}; DWELL until {datetime.fromtimestamp(current_time + dwell_remaining).strftime('%H:%M:%S')}"
-                
-                # Force the final state to match the *actual* current state
                 final_cool_state = is_currently_on 
-            
             else:
-                # Dwell is NOT active. A state change is allowed.
                 if final_cool_state != is_currently_on:
-                    # A change is happening, so reset the dwell timer
                     self.last_cool_change = current_time
-                    
-                    # Update cool_start_time
                     if final_cool_state: 
                         self.cool_start_time = current_time 
                     else: 
                         self.cool_start_time = None
-                
-                # We must ensure we reset the restriction key if it was fail-safe
                 self.current_restriction_key = "none"
 
         # --- 3. Apply Final States to Relays ---
         final_heat_state = desired_heat and not final_cool_state 
         
-        # Removed IS_HARDWARE_AVAILABLE check
         self.gpio.output(self.pins["Heat"], RELAY_ON if final_heat_state else RELAY_OFF)
         self.gpio.output(self.pins["Cool"], RELAY_ON if final_cool_state else RELAY_OFF)
-            
-        # --- 4. Update SettingsManager with simplified state and new restriction message ---
         
-        # Simple Relay State (for the main indicator)
+        # --- NEW: AUX RELAY LOGIC WITH OVERRIDE ---
+        # Determine Aux state based on the selected mode OR the override
+        aux_mode = self.settings.get("aux_relay_mode", "Monitoring")
+        aux_state = False
+        
+        if aux_override:
+            aux_state = True
+        elif aux_mode == "Always ON":
+            aux_state = True
+        elif aux_mode == "Always OFF":
+            aux_state = False
+        elif aux_mode == "Monitoring":
+            # ON if control_mode is NOT "OFF" (implies monitoring is active)
+            aux_state = (control_mode != "OFF")
+        elif aux_mode == "Heating":
+            aux_state = final_heat_state
+        elif aux_mode == "Cooling":
+            # Follows the ACTUAL cooling relay state
+            aux_state = final_cool_state
+        elif aux_mode == "Crashing":
+            # ON only if mode is Fast Crash AND monitoring (control_mode != OFF)
+            aux_state = (control_mode == "Fast Crash")
+            
+        self.gpio.output(self.pins["Fan"], RELAY_ON if aux_state else RELAY_OFF)
+        # -----------------------------
+
+        # --- 4. Update SettingsManager ---
         self.settings.set("heat_state", "HEATING" if final_heat_state else "Heating OFF")
         self.settings.set("cool_state", "COOLING" if final_cool_state else "Cooling OFF") 
-        
-        # Restriction Status (for the new secondary indicator)
         self.settings.set("cool_restriction_status", restriction_message) 
         
-        # --- MODIFICATION END ---
+        # Update transient fan state for UI
+        self.settings.set("fan_state", "Aux ON" if aux_state else "Aux OFF")
         
         return final_heat_state, final_cool_state
 
@@ -193,18 +196,17 @@ class RelayControl:
         self.gpio.output(self.pins["Fan"], RELAY_OFF)
         self.settings.set("fan_state", "Fan OFF")
 
-    def turn_off_all_relays(self, skip_fan=False):
-        # Removed IS_HARDWARE_AVAILABLE check
+    def turn_off_all_relays(self, skip_aux=False): # Renamed parameter for clarity
         self.gpio.output(self.pins["Heat"], RELAY_OFF)
         self.gpio.output(self.pins["Cool"], RELAY_OFF)
-        if not skip_fan: self.gpio.output(self.pins["Fan"], RELAY_OFF)
         
-        # --- MODIFICATION START ---
+        if not skip_aux: 
+            self.gpio.output(self.pins["Fan"], RELAY_OFF)
+            self.settings.set("fan_state", "Aux OFF")
+        
         self.settings.set("heat_state", "Heating OFF")
         self.settings.set("cool_state", "Cooling OFF")
-        # --- MODIFICATION END ---
-        if not skip_fan: self.settings.set("fan_state", "Fan OFF")
-
+        
     # --- UI UPDATE HELPERS ---
     
     def _log_restriction_change(self, key, message):

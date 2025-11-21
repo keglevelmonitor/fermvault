@@ -93,7 +93,7 @@ class SettingsManager:
             
             # --- NEW: Added for EULA/Support Popup ---
             "show_eula_on_launch": True,
-            "eula_agreed": False, # <-- NEW KEY
+            "eula_agreed": False, 
             # --- END NEW ---
             
             # --- FIX: ALL TRANSIENT KEYS MUST BE DEFINED ---
@@ -131,8 +131,9 @@ class SettingsManager:
             "fg_value_var": "-.---",    # This is now the VALUE (e.g., "-.---", "1.010")
             # --- END MODIFICATION ---
             
-            # --- NEW: Added missing fan_state key ---
-            "fan_state": "Fan OFF",
+            # --- NEW: Replaced fan_control_mode with aux_relay_mode ---
+            "aux_relay_mode": "Monitoring",
+            "fan_state": "Fan OFF", # Transient key for UI display
             # --- END NEW ---
         }
             

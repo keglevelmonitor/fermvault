@@ -1831,10 +1831,23 @@ class PopupManager:
         popup.transient(self.root)
         popup.grab_set()
         
+        # --- Create Tabs ---
+        notebook = ttk.Notebook(popup)
+        notebook.pack(expand=True, fill='both', padx=5, pady=5)
+        
+        settings_tab = ttk.Frame(notebook, padding=15)
+        test_tab = ttk.Frame(notebook, padding=15)
+        
+        notebook.add(settings_tab, text='Configuration')
+        notebook.add(test_tab, text='Test Relays')
+
+        # ==========================================
+        # TAB 1: CONFIGURATION (Existing Settings)
+        # ==========================================
+        
         # 1. Load Current Settings
         comp_settings = self.settings_manager.get_all_compressor_protection_settings()
         
-        # Convert seconds (stored) to minutes (displayed)
         self.dwell_time_min_var.set(str(int(comp_settings['cooling_dwell_time_s'] / 60)))
         self.max_run_time_min_var.set(str(int(comp_settings['max_cool_runtime_s'] / 60)))
         self.fail_safe_shutdown_min_var.set(str(int(comp_settings['fail_safe_shutdown_time_s'] / 60)))
@@ -1845,7 +1858,7 @@ class PopupManager:
         self.beer_sensor_var.set(current_beer_sensor)
         self.ambient_sensor_var.set(current_amb_sensor)
         
-        # 2. Detect Sensors for Dropdowns
+        # 2. Detect Sensors
         available_sensors = ["unassigned"]
         try:
             detected = self.temp_controller.detect_ds18b20_sensors()
@@ -1854,18 +1867,13 @@ class PopupManager:
         except Exception as e:
             print(f"Error detecting sensors: {e}")
             
-        # Ensure current selection is in the list (even if not currently detected)
         if current_beer_sensor not in available_sensors:
             available_sensors.append(current_beer_sensor)
         if current_amb_sensor not in available_sensors and current_amb_sensor != current_beer_sensor:
              available_sensors.append(current_amb_sensor)
 
-        # 3. Build UI
-        form_frame = ttk.Frame(popup, padding="15")
-        form_frame.pack(fill="both", expand=True)
-        
-        # -- Compressor Section --
-        ttk.Label(form_frame, text="Compressor Protection", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
+        # 3. Build UI for Tab 1
+        ttk.Label(settings_tab, text="Compressor Protection", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
         
         def add_row(parent, label, var, unit="minutes"):
             row = ttk.Frame(parent)
@@ -1874,14 +1882,13 @@ class PopupManager:
             ttk.Entry(row, textvariable=var, width=10).pack(side='left', padx=(5, 5))
             ttk.Label(row, text=unit).pack(side='left')
 
-        add_row(form_frame, "Cooling Dwell Time:", self.dwell_time_min_var)
-        add_row(form_frame, "Max Cool Runtime:", self.max_run_time_min_var)
-        add_row(form_frame, "Fail-Safe Shutdown Time:", self.fail_safe_shutdown_min_var)
+        add_row(settings_tab, "Cooling Dwell Time:", self.dwell_time_min_var)
+        add_row(settings_tab, "Max Cool Runtime:", self.max_run_time_min_var)
+        add_row(settings_tab, "Fail-Safe Shutdown Time:", self.fail_safe_shutdown_min_var)
         
-        ttk.Separator(form_frame, orient='horizontal').pack(fill='x', pady=15)
+        ttk.Separator(settings_tab, orient='horizontal').pack(fill='x', pady=15)
         
-        # -- Sensor Section --
-        ttk.Label(form_frame, text="Sensor Assignment (DS18B20)", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
+        ttk.Label(settings_tab, text="Sensor Assignment (DS18B20)", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
         
         def add_sensor_row(parent, label, var, options):
             row = ttk.Frame(parent)
@@ -1891,22 +1898,152 @@ class PopupManager:
             cb.pack(side='left', padx=(5, 5))
             return cb
 
-        add_sensor_row(form_frame, "Beer Sensor:", self.beer_sensor_var, available_sensors)
-        add_sensor_row(form_frame, "Ambient Sensor:", self.ambient_sensor_var, available_sensors)
+        add_sensor_row(settings_tab, "Beer Sensor:", self.beer_sensor_var, available_sensors)
+        add_sensor_row(settings_tab, "Ambient Sensor:", self.ambient_sensor_var, available_sensors)
 
-        # 4. Buttons
+        # ==========================================
+        # TAB 2: TEST RELAYS
+        # ==========================================
+        
+        self.test_heat_var = tk.BooleanVar(value=False)
+        self.test_cool_var = tk.BooleanVar(value=False)
+        self.test_aux_var = tk.BooleanVar(value=False)
+        
+        self.test_heat_status_var = tk.StringVar(value="Heating OFF")
+        self.test_cool_status_var = tk.StringVar(value="Cooling OFF")
+        self.test_restrict_status_var = tk.StringVar(value="")
+        
+        is_monitoring = (self.ui.monitoring_var.get() == "ON")
+        state_str = "disabled" if is_monitoring else "normal"
+        
+        if is_monitoring:
+            ttk.Label(test_tab, text="Monitoring must be OFF to test relays.", foreground="red", font=('TkDefaultFont', 10, 'bold')).pack(pady=(0, 10))
+        else:
+             ttk.Label(test_tab, text="Select a relay to force it ON. Only one can be active at a time.", font=('TkDefaultFont', 9, 'italic')).pack(pady=(0, 10))
+
+        controls_frame = ttk.LabelFrame(test_tab, text="Manual Relay Control", padding=10)
+        controls_frame.pack(fill="x", pady=(0, 15))
+        
+        def update_test_colors():
+            """Updates the background colors of the test status labels."""
+            h_val = self.test_heat_status_var.get()
+            c_val = self.test_cool_status_var.get()
+            r_val = self.test_restrict_status_var.get()
+            
+            self.lbl_heat_status.config(style='Red.TLabel' if "HEATING" in h_val else 'Gray.TLabel')
+            self.lbl_cool_status.config(style='Blue.TLabel' if "COOLING" in c_val else 'Gray.TLabel')
+            
+            if "DWELL" in r_val:
+                self.lbl_restrict_status.config(style='Yellow.TLabel')
+            elif "FAIL-SAFE" in r_val:
+                self.lbl_restrict_status.config(style='AlertRed.TLabel')
+            else:
+                self.lbl_restrict_status.config(style='Gray.TLabel')
+
+        def toggle_relay(selected_relay):
+            """Logic to enforce one-at-a-time and update UI immediately."""
+            if is_monitoring: return 
+
+            # 1. Enforce Mutual Exclusion in UI
+            if selected_relay == "Heat":
+                self.test_cool_var.set(False)
+                self.test_aux_var.set(False)
+            elif selected_relay == "Cool":
+                self.test_heat_var.set(False)
+                self.test_aux_var.set(False)
+            elif selected_relay == "Aux":
+                self.test_heat_var.set(False)
+                self.test_cool_var.set(False)
+            
+            # Note: We don't call controller here anymore, the loop handles it naturally 
+            # based on the variables we just set. However, calling it once here ensures instant response.
+            do_heat = self.test_heat_var.get()
+            do_cool = self.test_cool_var.get()
+            do_aux = self.test_aux_var.get()
+            
+            self.temp_controller.relay_control.set_desired_states(
+                desired_heat=do_heat, desired_cool=do_cool, control_mode="OFF", aux_override=do_aux
+            )
+            
+            # Update display immediately
+            self.test_heat_status_var.set(self.settings_manager.get("heat_state"))
+            self.test_cool_status_var.set(self.settings_manager.get("cool_state"))
+            self.test_restrict_status_var.set(self.settings_manager.get("cool_restriction_status"))
+            update_test_colors()
+
+        ttk.Checkbutton(controls_frame, text="Heating Relay", variable=self.test_heat_var, 
+                        command=lambda: toggle_relay("Heat"), state=state_str).pack(anchor="w", pady=2)
+        ttk.Checkbutton(controls_frame, text="Cooling Relay", variable=self.test_cool_var, 
+                        command=lambda: toggle_relay("Cool"), state=state_str).pack(anchor="w", pady=2)
+        ttk.Checkbutton(controls_frame, text="Aux Relay", variable=self.test_aux_var, 
+                        command=lambda: toggle_relay("Aux"), state=state_str).pack(anchor="w", pady=2)
+
+        status_frame = ttk.LabelFrame(test_tab, text="System Status", padding=10)
+        status_frame.pack(fill="x")
+        
+        self.lbl_heat_status = ttk.Label(status_frame, textvariable=self.test_heat_status_var, style='Gray.TLabel', relief='sunken', anchor='center')
+        self.lbl_heat_status.pack(fill="x", pady=2)
+        self.lbl_cool_status = ttk.Label(status_frame, textvariable=self.test_cool_status_var, style='Gray.TLabel', relief='sunken', anchor='center')
+        self.lbl_cool_status.pack(fill="x", pady=2)
+        self.lbl_restrict_status = ttk.Label(status_frame, textvariable=self.test_restrict_status_var, style='Gray.TLabel', relief='sunken', anchor='center')
+        self.lbl_restrict_status.pack(fill="x", pady=2)
+        
+        ttk.Label(test_tab, text="Note: Cooling relay respects Compressor Protection (Dwell/Fail-Safe).", font=('TkDefaultFont', 8)).pack(pady=(5, 0))
+        
+        update_test_colors()
+
+        # --- NEW: Background Loop for Test Tab ---
+        # This ensures Dwell timers count down and states update even without user clicks.
+        def run_test_loop():
+            if not popup.winfo_exists():
+                return
+            
+            if not is_monitoring:
+                # 1. Get current UI intent
+                do_heat = self.test_heat_var.get()
+                do_cool = self.test_cool_var.get()
+                do_aux_override = self.test_aux_var.get()
+                
+                # 2. Re-run controller logic (Updates relays based on elapsed time)
+                self.temp_controller.relay_control.set_desired_states(
+                    desired_heat=do_heat, 
+                    desired_cool=do_cool, 
+                    control_mode="OFF", 
+                    aux_override=do_aux_override
+                )
+                
+                # 3. Refresh Status
+                self.test_heat_status_var.set(self.settings_manager.get("heat_state"))
+                self.test_cool_status_var.set(self.settings_manager.get("cool_state"))
+                self.test_restrict_status_var.set(self.settings_manager.get("cool_restriction_status"))
+                update_test_colors()
+            
+            # Run again in 1 second
+            popup.after(1000, run_test_loop)
+
+        if not is_monitoring:
+            run_test_loop()
+
+        # ==========================================
+        # COMMON BUTTONS
+        # ==========================================
         btns_frame = ttk.Frame(popup, padding="10")
         btns_frame.pack(fill="x", side="bottom")
         
-        # Help Button linked to 'system' section
         ttk.Button(btns_frame, text="Help", command=lambda: self._open_help_popup("system")).pack(side="left", padx=5)
-        
         ttk.Button(btns_frame, text="Save", command=lambda: self._save_system_settings(popup)).pack(side="right", padx=5)
-        ttk.Button(btns_frame, text="Cancel", command=popup.destroy).pack(side="right")
+        
+        def on_close():
+            if not is_monitoring and (self.test_heat_var.get() or self.test_cool_var.get() or self.test_aux_var.get()):
+                 self.temp_controller.relay_control.turn_off_all_relays()
+            popup.destroy()
+            
+        ttk.Button(btns_frame, text="Close", command=on_close).pack(side="right")
+        popup.protocol("WM_DELETE_WINDOW", on_close) 
 
         popup.update_idletasks()
         popup.withdraw()
-        self._center_popup(popup, 550, popup.winfo_height())
+        self._center_popup(popup, 550, 450)
         
     def _open_support_popup(self, is_launch=False):
         """
