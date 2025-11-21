@@ -74,6 +74,7 @@ class NotificationManager:
             "setpoint ramp [nn]",
             "setpoint duration [nn] (ramp up duration in hours)",
             "setpoint crash [nn]",
+            "notification frequency [nn] (report frequency in hours)",
         ]
         
     def _parse_setpoint_value(self, value_str):
@@ -96,7 +97,6 @@ class NotificationManager:
         commands_processed = 0
         
         # Get current temp units for C-to-F conversion if needed
-        # NOTE: All internal settings are in Fahrenheit.
         current_units = self.settings_manager.get("temp_units", "F")
 
         lines = [line.strip().lower() for line in email_body.splitlines() if line.strip()]
@@ -113,46 +113,38 @@ class NotificationManager:
             value_str = parts[-1] if len(parts) > 1 else None
 
             try:
-                # --- Control Mode Commands (MODIFIED to use short names) ---
+                # --- Control Mode Commands ---
                 if line == "control mode ambient":
                     self.settings_manager.set("control_mode", "Ambient Hold")
-                    # --- FIX: Update the UI dropdown variable to the display name ---
                     if self.ui: self.ui.root.after(0, self.ui.control_mode_var.set, "Ambient")
-                    # ------------------------------------------
                     results.append(f"OK: Control Mode set to Ambient.")
                     commands_processed += 1
                 elif line == "control mode beer":
                     self.settings_manager.set("control_mode", "Beer Hold")
-                    # --- FIX: Update the UI dropdown variable to the display name ---
                     if self.ui: self.ui.root.after(0, self.ui.control_mode_var.set, "Beer")
-                    # ------------------------------------------
                     results.append(f"OK: Control Mode set to Beer.")
                     commands_processed += 1
                 elif line == "control mode ramp":
                     self.settings_manager.set("control_mode", "Ramp-Up")
-                    # --- FIX: Update the UI dropdown variable to the display name ---
                     if self.ui: self.ui.root.after(0, self.ui.control_mode_var.set, "Ramp")
-                    # ------------------------------------------
                     results.append(f"OK: Control Mode set to Ramp.")
                     commands_processed += 1
                 elif line == "control mode crash":
                     self.settings_manager.set("control_mode", "Fast Crash")
-                    # --- FIX: Update the UI dropdown variable to the display name ---
                     if self.ui: self.ui.root.after(0, self.ui.control_mode_var.set, "Crash")
-                    # ------------------------------------------
                     results.append(f"OK: Control Mode set to Crash.")
                     commands_processed += 1
-                # --- END MODIFICATION ---
                 
-                # --- Setpoint Commands ---
-                elif command_key in ["setpoint ambient", "setpoint beer", "setpoint ramp", "setpoint crash", "setpoint duration"]:
+                # --- Setpoint & Configuration Commands ---
+                elif command_key in ["setpoint ambient", "setpoint beer", "setpoint ramp", "setpoint crash", "setpoint duration", "notification frequency"]:
                     if not value_str:
                         raise ValueError("missing value")
                     
-                    value_f = self._parse_setpoint_value(value_str) # Validates and converts to float
+                    value_f = self._parse_setpoint_value(value_str) # Validates and returns float
                     
-                    # Convert to Fahrenheit if input is C (except for duration)
-                    if command_key != "setpoint duration" and current_units == "C":
+                    # Convert to Fahrenheit if input is C 
+                    # (Skip conversion for Duration and Frequency as they are Time, not Temp)
+                    if command_key not in ["setpoint duration", "notification frequency"] and current_units == "C":
                         value_f = (value_f * 9/5) + 32
 
                     if command_key == "setpoint ambient":
@@ -170,7 +162,26 @@ class NotificationManager:
                     elif command_key == "setpoint duration":
                         self.settings_manager.set("ramp_up_duration_hours", value_f)
                         results.append(f"OK: Ramp Duration set to {value_f:.1f} hours.")
+                    
+                    # --- NEW COMMAND LOGIC (Renamed) ---
+                    elif command_key == "notification frequency":
+                        # 1. Get old frequency
+                        old_freq = self.settings_manager.get("frequency_hours", 0)
+                        # 2. Convert new value to int
+                        new_freq = int(value_f)
                         
+                        if new_freq < 0:
+                            raise ValueError("Frequency cannot be negative.")
+                            
+                        # 3. Save setting
+                        self.settings_manager.set("frequency_hours", new_freq)
+                        
+                        # 4. Force Scheduler Update
+                        self.force_reschedule(old_freq, new_freq)
+                        
+                        results.append(f"OK: Notification Frequency set to {new_freq} hours.")
+                    # -----------------------------------
+
                     commands_processed += 1
 
                 else:
