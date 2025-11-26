@@ -6,6 +6,7 @@
 INSTALL_DIR="$HOME/fermvault"
 DATA_DIR="$HOME/fermvault-data"
 WHAT_TO_INSTALL="FermVault Application and Data Directory"
+CLEANUP_MODE="NONE"
 
 echo "========================================"
 echo "   FermVault Auto-Installer"
@@ -27,16 +28,10 @@ if [ -d "$INSTALL_DIR" ] || [ -d "$DATA_DIR" ]; then
     
     if [ "$choice" == "APP" ]; then
         WHAT_TO_INSTALL="FermVault Application"
-        # Remove app dir to force a clean git clone
-        if [ -d "$INSTALL_DIR" ]; then
-            echo "Removing existing application..."
-            rm -rf "$INSTALL_DIR"
-        fi
+        CLEANUP_MODE="APP"
     elif [ "$choice" == "ALL" ]; then
         WHAT_TO_INSTALL="FermVault Application and Data Directory"
-        echo "Removing application and data..."
-        rm -rf "$INSTALL_DIR"
-        rm -rf "$DATA_DIR"
+        CLEANUP_MODE="ALL"
     else
         echo "Cancelled."
         exit 0
@@ -58,13 +53,23 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
-# 4. Check/Install Git
+# 4. Perform Cleanup (Delayed until AFTER confirmation)
+if [ "$CLEANUP_MODE" == "APP" ]; then
+    echo "Removing existing application..."
+    rm -rf "$INSTALL_DIR"
+elif [ "$CLEANUP_MODE" == "ALL" ]; then
+    echo "Removing application and data..."
+    rm -rf "$INSTALL_DIR"
+    rm -rf "$DATA_DIR"
+fi
+
+# 5. Check/Install Git
 if ! command -v git &> /dev/null; then
     echo "Git not found. Installing..."
     sudo apt-get update && sudo apt-get install -y git
 fi
 
-# 5. Clone Repo
+# 6. Clone Repo
 # Since we deleted the directory in the logic above (if it existed), 
 # we can simply clone.
 if [ -d "$INSTALL_DIR" ]; then
@@ -77,7 +82,7 @@ else
     cd "$INSTALL_DIR" || exit 1
 fi
 
-# 6. Run the Main Installer
+# 7. Run the Main Installer
 echo "Launching main installer..."
 chmod +x install.sh
 ./install.sh
