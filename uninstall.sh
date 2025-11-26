@@ -13,7 +13,7 @@ echo "=========================================="
 echo "      FermVault Uninstaller"
 echo "=========================================="
 echo ""
-echo "Please choose an option:"
+echo "Please choose an option (Case Sensitive):"
 echo ""
 echo "  APP  - Uninstall ONLY the application."
 echo "         (Deletes $APP_DIR)"
@@ -25,12 +25,10 @@ echo "         (Deletes $DATA_DIR)"
 echo ""
 echo "Press any other key to exit without changes."
 echo ""
-read -p "Enter your choice: " choice
+read -p "Enter your choice (APP or ALL): " choice
 echo ""
 
-# Convert input to uppercase for easier comparison
-choice=$(echo "$choice" | tr '[:lower:]' '[:upper:]')
-
+# Logic check - Case sensitive
 if [ "$choice" == "APP" ]; then
     TO_DELETE="$APP_DIR"
     MSG="The FermVault application folder."

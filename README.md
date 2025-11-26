@@ -42,6 +42,24 @@ For the complete list of required hardware, part numbers, and purchasing links, 
 Here is a quick wiring diagram showing the logical connections of the system's components:
 ![Wiring Diagram for FermVault](src/assets/wiring.gif)
 
+## To uninstall the FermVault app
+
+Selections within the uninstall script allow you to:
+* uninstall only the app, leaving the settings folder intact (APP)
+    this is useful if you wish to reinstall the app but retain settings
+    (deletes ~/fermvault contents and all of its subfolders)
+    (deletes the desktop shortcut from the Other launch menu)
+* uninstall the app and all of its settings (ALL)
+    (deletes everything above)
+    (deletes ~/fermvault-data contents)
+* exit without doing anything
+
+To uninstall, open **Terminal** and run this command. Type carefully and use proper uppercase / lowercase because it matters:
+
+```bash
+bash <(curl -sL https://bit.ly/uninstall-fermvault)
+```
+
 ## ⚙️ For reference
 
 Installed file structure:
