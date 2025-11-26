@@ -60,6 +60,12 @@ class SettingsManager:
             "controlled_shutdown": False,
             "ds18b20_ambient_sensor": "unassigned",
             "ds18b20_beer_sensor": "unassigned",
+            
+            # --- NEW: Relay Logic Defaults ---
+            "relay_logic_configured": False, # Forces wizard on first run
+            "relay_active_high": False,      # Default to Active Low (Standard)
+            # ---------------------------------
+
             "brew_session_title": "",
             "active_api_service": "OFF",
             "current_brew_session_id": None,
@@ -258,7 +264,19 @@ class SettingsManager:
                         elif isinstance(value, dict):
                             for sub_key, sub_value in value.items():
                                 if sub_key not in self.settings[key]:
-                                    self.settings[key][sub_key] = sub_value
+                                    
+                                    # --- MIGRATION LOGIC START ---
+                                    # If 'relay_logic_configured' is missing from an EXISTING file, it means
+                                    # the user is updating from an older version. The older version ONLY supported
+                                    # Active Low. Therefore, we force them to "Configured + Active Low".
+                                    if sub_key == "relay_logic_configured":
+                                        print("[SettingsManager] Migrating legacy user: Defaulting to Active Low logic.")
+                                        self.settings[key][sub_key] = True # Force 'Configured' to skip wizard
+                                    else:
+                                        # For all other missing keys (including relay_active_high), use the default.
+                                        # Default for relay_active_high is False (Active Low), which is correct.
+                                        self.settings[key][sub_key] = sub_value
+                                    # --- MIGRATION LOGIC END ---
                                     
                 # --- MODIFICATION START: Load brew sessions from main settings ---
                 self.brew_sessions = self.settings['system_settings'].get('brew_sessions_list', [""] * 10)
@@ -283,10 +301,6 @@ class SettingsManager:
             self.was_controlled_shutdown = False
             self.settings['system_settings']['controlled_shutdown'] = False
             # --- END MODIFICATION ---
-        
-        # --- MODIFICATION: This call is no longer needed here, moved logic above ---
-        # self.set("controlled_shutdown", False) 
-        # --- END MODIFICATION ---
 
     def _save_all_settings(self):
         try:

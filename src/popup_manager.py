@@ -54,6 +54,10 @@ class PopupManager:
         self.wiring_diagram_image = None
         # --- END NEW ---
         
+        # --- NEW: Relay LED Image Variable ---
+        self.relay_led_image = None 
+        # -------------------------------------
+        
         # --- Internal StringVars for Popups ---
         # Control Mode
         self.amb_hold_var = tk.StringVar()
@@ -1824,6 +1828,29 @@ class PopupManager:
             self.ui.log_system_message(f"Error loading support image: {e}")
             self.support_qr_image = None
             
+    def _load_relay_led_image(self):
+        """Loads the relay LED diagram image and stores it."""
+        if self.relay_led_image:
+            return # Already loaded
+            
+        try:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            # Assumes file is named relay_led.gif
+            image_path = os.path.join(base_dir, "assets", "relay_led.gif")
+            
+            # Use tk.PhotoImage directly
+            self.relay_led_image = tk.PhotoImage(file=image_path)
+            
+        except FileNotFoundError:
+            self.ui.log_system_message("Error: relay_led.gif image not found.")
+            self.relay_led_image = None
+        except tk.TclError as e:
+            self.ui.log_system_message(f"Error loading relay_led.gif: {e}")
+            self.relay_led_image = None
+        except Exception as e:
+            self.ui.log_system_message(f"Error loading relay LED image: {e}")
+            self.relay_led_image = None
+            
     # --- SYSTEM SETTINGS ---
     def _open_system_settings_popup(self):
         popup = tk.Toplevel(self.root)
@@ -1900,6 +1927,21 @@ class PopupManager:
 
         add_sensor_row(settings_tab, "Beer Sensor:", self.beer_sensor_var, available_sensors)
         add_sensor_row(settings_tab, "Ambient Sensor:", self.ambient_sensor_var, available_sensors)
+        
+        ttk.Separator(settings_tab, orient='horizontal').pack(fill='x', pady=15)
+        
+        # --- NEW: Relay Logic Re-Configuration ---
+        ttk.Label(settings_tab, text="Hardware Configuration", font=('TkDefaultFont', 10, 'bold')).pack(anchor="w", pady=(0, 5))
+        
+        logic_frame = ttk.Frame(settings_tab)
+        logic_frame.pack(fill="x", pady=2)
+        
+        current_logic = "Active High" if self.settings_manager.get("relay_active_high") else "Active Low"
+        ttk.Label(logic_frame, text=f"Current Relay Logic: {current_logic}").pack(side="left")
+        
+        ttk.Button(logic_frame, text="Re-configure / Test", 
+                   command=lambda: [popup.destroy(), self._open_relay_setup_wizard()]).pack(side="right")
+        # -----------------------------------------
 
         # ==========================================
         # TAB 2: TEST RELAYS
@@ -2044,7 +2086,96 @@ class PopupManager:
         popup.update_idletasks()
         popup.withdraw()
         self._center_popup(popup, 550, 450)
+            
+    def _open_relay_setup_wizard(self):
+        """
+        Opens a wizard that forces the AUX relay LOW and asks the user
+        to visually confirm the LED state.
+        """
+        # 1. Start the hardware test (Send LOW to Aux)
+        self.temp_controller.relay_control.run_setup_test("TEST_LOW")
         
+        # 2. Load Image
+        self._load_relay_led_image()
+        
+        popup = tk.Toplevel(self.root)
+        popup.title("Hardware Setup: Relay Logic")
+        popup.transient(self.root)
+        popup.grab_set()
+        
+        main_frame = ttk.Frame(popup, padding=15)
+        main_frame.pack(fill="both", expand=True)
+        
+        # Header
+        ttk.Label(main_frame, text="Hardware Logic Detection", font=('TkDefaultFont', 12, 'bold')).pack(pady=(0, 10))
+        
+        # Instructions
+        msg = ("The system has sent a LOW signal to the AUX Relay.\n\n"
+               "Please look at your relay board.\n"
+               "Is the LED indicator for the AUX relay ON?")
+        ttk.Label(main_frame, text=msg, justify="center").pack(pady=(0, 10))
+        
+        # Image (Placed beneath instructions, above buttons)
+        if self.relay_led_image:
+            img_label = ttk.Label(main_frame, image=self.relay_led_image)
+            img_label.pack(pady=(0, 15))
+        else:
+            # Fallback if image missing
+            ttk.Label(main_frame, text="[Image relay_led.gif missing]", foreground="red").pack(pady=(0, 15))
+        
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill="x", pady=5)
+        
+        # LOGIC MAPPING:
+        # User says ON -> LOW signal turned it ON -> Active Low (Standard)
+        # --- TEXT CHANGE HERE ---
+        ttk.Button(btn_frame, text="YES, AUX LED is ON\n(Active Low Board)", 
+                   command=lambda: self._finalize_relay_setup(popup, active_high=False)).pack(side="left", expand=True, padx=5, fill="x")
+                   
+        # User says OFF -> LOW signal kept it OFF -> Active High
+        ttk.Button(btn_frame, text="NO, AUX LED is OFF\n(Active High Board)", 
+                   command=lambda: self._finalize_relay_setup(popup, active_high=True)).pack(side="right", expand=True, padx=5, fill="x")
+                   
+        # Prevent closing without choice
+        popup.protocol("WM_DELETE_WINDOW", lambda: None) 
+        
+        # Increased size to accommodate image (Approx 500x580)
+        self._center_popup(popup, 500, 580)
+        
+    def _finalize_relay_setup(self, popup, active_high):
+        """Saves the detected logic and initializes the relays."""
+        try:
+            # 1. Save Settings
+            self.settings_manager.set("relay_active_high", active_high)
+            self.settings_manager.set("relay_logic_configured", True)
+            
+            # 2. Update Controller Live
+            rc = self.temp_controller.relay_control
+            rc.logic_configured = True
+            
+            # --- CRITICAL FIX ---
+            # Pass initial_setup=True to update constants WITHOUT attempting 
+            # to write to the GPIO pins yet. The pins are still INPUTs here; 
+            # writing to them causes the crash.
+            rc.update_relay_logic(initial_setup=True)
+            # --------------------
+            
+            # 3. Initialize Pins (Switch from INPUT to OUT/OFF)
+            # This applies the configuration safely to the hardware.
+            rc._setup_gpio() 
+            
+            popup.destroy()
+            
+            # --- TEXT FIX: Removed "(Standard)" ---
+            mode_str = "Active High" if active_high else "Active Low"
+            
+            self.ui.log_system_message(f"Relay logic configured: {mode_str}")
+            
+            messagebox.showinfo("Setup Complete", f"Relay logic has been configured as:\n{mode_str}")
+            
+        except Exception as e:
+            messagebox.showerror("Setup Error", f"Failed to apply relay settings: {e}")
+
     def _open_support_popup(self, is_launch=False):
         """
         Displays the 'Support this App' popup, which includes the EULA.
@@ -2205,48 +2336,60 @@ class PopupManager:
     def _handle_support_popup_close(self, popup):
         """Handles the logic for the 'Close' button on the Support/EULA popup."""
         
-        # --- NEW: Check if the popup is already being destroyed ---
+        # Check if the popup is valid
         if not popup.winfo_exists():
             return
-        # --- END NEW ---
         
         agreement_state = self.eula_agreement_var.get()
         do_not_show_checked = self.show_eula_checkbox_var.get()
         
-        # --- 2. Check Agreement State ---
-        if agreement_state == 1: # "I agree"
-            # --- MODIFICATION: Save both settings ---
+        # --- CASE 1: User Agreed ---
+        if agreement_state == 1: 
+            print("[PopupManager] User agreed to EULA.")
+            
+            # Save settings
             self.settings_manager.set("show_eula_on_launch", not do_not_show_checked)
             self.settings_manager.set("eula_agreed", True)
-            # --- END MODIFICATION ---
             
+            # Close EULA window first
             popup.destroy()
+            
+            # --- CHAIN TO RELAY WIZARD ---
+            # Check if logic is configured. If not, open the wizard IMMEDIATELY.
+            # We check for False OR None to be safe.
+            is_configured = self.settings_manager.get("relay_logic_configured", False)
+            
+            if not is_configured:
+                print("[PopupManager] Relay logic not configured. Launching Wizard...")
+                # Call directly, no .after() delay to prevent timing issues
+                self._open_relay_setup_wizard()
+            else:
+                print("[PopupManager] Relay logic already configured. Skipping Wizard.")
+            # -----------------------------
             return
 
-        elif agreement_state == 2: # "I do not agree"
-            # --- MODIFICATION: Save both settings ---
-            # Reset the "do not show" setting if they disagreed
+        # --- CASE 2: User Disagreed ---
+        elif agreement_state == 2: 
+            print("[PopupManager] User disagreed with EULA.")
+            
+            # Reset "do not show" if they disagreed
             if do_not_show_checked:
                 self.settings_manager.set("show_eula_on_launch", True)
             
             self.settings_manager.set("eula_agreed", False)
-            # --- END MODIFICATION ---
             
             popup.destroy()
             self._show_disagree_dialog()
             return
             
-        else: # State is 0 (neither selected)
-            # --- NEW: Check again before showing a message ---
-            if not popup.winfo_exists():
-                return
-            # --- END NEW ---
+        # --- CASE 3: No Selection ---
+        else: 
+            if not popup.winfo_exists(): return
             messagebox.showwarning("Agreement Required", 
                                    "You must select 'I agree' or 'I do not agree' to proceed.", 
                                    parent=popup)
-            # Do not close the popup
             return
-
+            
     def _show_disagree_dialog(self):
         """Shows the final confirmation dialog when user disagrees with EULA."""
         

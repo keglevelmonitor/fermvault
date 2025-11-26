@@ -66,20 +66,20 @@ Installed file structure:
 ```
 ~/fermvault/
 ├── .gitignore
-├── LICENSE
-├── README.md
 ├── fermvault.desktop
 ├── install.sh
+├── LICENSE
+├── README.md
 ├── requirements.txt
 ├── setup.sh
 ├── uninstall.sh
 ├── update.sh
 │
 ├── src/
-│   ├── main.py
 │   ├── api_manager.py
 │   ├── brewersfriend.api.py
 │   ├── fg_calculator.py
+│   ├── main.py
 │   ├── messages.py
 │   ├── notification_manager.py
 │   ├── popup_manager.py
@@ -92,14 +92,15 @@ Installed file structure:
 │   └── assets/
 │        ├── help.txt
 │        ├── changelog.txt
-│        ├── wiring.gif
+│        ├── fermenter.png
+│        ├── relay_led.gif
 │        ├── support.gif
-│        └── fermenter.png
+│        └── wiring.gif
 │
 ├── venv/
 │   ├── (installed dependencies)
-│   ├── rpi-lgpio
 │   ├── requests
+│   ├── rpi-lgpio
 │   ├── pytz
 │
 ~/fermvault-data/

@@ -35,6 +35,12 @@ class RelayControl:
         
         self.current_restriction_key = "dwell"
         
+        # --- NEW: Initialize Logic Config ---
+        self.logic_configured = self.settings.get("relay_logic_configured", False)
+        # Load the correct High/Low values (this sets self.RELAY_ON and self.RELAY_OFF)
+        self.update_relay_logic(initial_setup=True) 
+        # ------------------------------------
+        
         # --- NEW: Set initial Dwell Message on Startup ---
         try:
             DWELL_TIME_S = self.settings.get_all_compressor_protection_settings()["cooling_dwell_time_s"]
@@ -48,7 +54,7 @@ class RelayControl:
         # --- END NEW ---
         
         self._setup_gpio()
-
+        
     def set_logger(self, logger_callable):
         """Assigns the UI's logging function to this class."""
         self.logger = logger_callable
@@ -56,6 +62,28 @@ class RelayControl:
         if self.logger:
             # Removed the initial logging of the Dwell Time, as it's not a true restriction yet.
             pass
+
+    def update_relay_logic(self, initial_setup=False):
+        """
+        Refreshes High/Low definitions based on settings.
+        Can be called live to switch logic without restart.
+        """
+        is_active_high = self.settings.get("relay_active_high", False)
+        
+        if is_active_high:
+            self.RELAY_ON = self.gpio.HIGH
+            self.RELAY_OFF = self.gpio.LOW
+            if not initial_setup:
+                 print("[RelayControl] Logic set to ACTIVE HIGH")
+        else:
+            self.RELAY_ON = self.gpio.LOW
+            self.RELAY_OFF = self.gpio.HIGH
+            if not initial_setup:
+                 print("[RelayControl] Logic set to ACTIVE LOW")
+
+        # If we are live (not booting) and configured, apply the new OFF state immediately for safety
+        if not initial_setup and self.logic_configured:
+             self.turn_off_all_relays()
 
     def _setup_gpio(self):
         # Removed IS_HARDWARE_AVAILABLE check
@@ -69,16 +97,41 @@ class RelayControl:
                 print(f"[ERROR] GPIO: Skipping pin {pin} as it's not a valid number.")
                 continue
 
-            self.gpio.setup(pin_int, self.gpio.OUT)
-            self.gpio.output(pin_int, RELAY_OFF) # Ensure all are OFF initially
+            # --- SAFETY LOGIC ---
+            if not self.logic_configured:
+                # SAFETY MODE: Set to INPUT (High Impedance)
+                # This ensures we don't accidentally trigger a relay until the user confirms logic.
+                self.gpio.setup(pin_int, self.gpio.IN)
+            else:
+                # OPERATIONAL MODE: Set to OUT and drive to SAFE OFF
+                self.gpio.setup(pin_int, self.gpio.OUT)
+                self.gpio.output(pin_int, self.RELAY_OFF) # Ensure all are OFF initially
+            # --------------------
+
+    def run_setup_test(self, state):
+        """
+        Used by the Setup Wizard to force the AUX pin state.
+        Bypasses standard logic to test hardware response.
+        """
+        try:
+            fan_pin = int(self.pins["Fan"])
+            if state == "TEST_LOW":
+                # Force pin to OUTPUT and LOW
+                self.gpio.setup(fan_pin, self.gpio.OUT)
+                self.gpio.output(fan_pin, self.gpio.LOW)
+            elif state == "RESET":
+                # Revert to Safety Input Mode
+                self.gpio.setup(fan_pin, self.gpio.IN)
+        except Exception as e:
+            print(f"[RelayControl] Setup test failed: {e}")
 
     def _is_cooling_on(self):
-        # Removed IS_HARDWARE_AVAILABLE check
-        return self.gpio.input(self.pins["Cool"]) == RELAY_ON
+        if not self.logic_configured: return False
+        return self.gpio.input(self.pins["Cool"]) == self.RELAY_ON
 
     def _is_heating_on(self):
-        # Removed IS_HARDWARE_AVAILABLE check
-        return self.gpio.input(self.pins["Heat"]) == RELAY_ON
+        if not self.logic_configured: return False
+        return self.gpio.input(self.pins["Heat"]) == self.RELAY_ON
 
     # --- RELAY CONTROL AND PROTECTION ENFORCEMENT ---
 
@@ -144,9 +197,6 @@ class RelayControl:
         # --- 3. Apply Final States to Relays ---
         final_heat_state = desired_heat and not final_cool_state 
         
-        self.gpio.output(self.pins["Heat"], RELAY_ON if final_heat_state else RELAY_OFF)
-        self.gpio.output(self.pins["Cool"], RELAY_ON if final_cool_state else RELAY_OFF)
-        
         # --- NEW: AUX RELAY LOGIC WITH OVERRIDE ---
         # Determine Aux state based on the selected mode OR the override
         aux_mode = self.settings.get("aux_relay_mode", "Monitoring")
@@ -170,8 +220,12 @@ class RelayControl:
             # ON only if mode is Fast Crash AND monitoring (control_mode != OFF)
             aux_state = (control_mode == "Fast Crash")
             
-        self.gpio.output(self.pins["Fan"], RELAY_ON if aux_state else RELAY_OFF)
-        # -----------------------------
+        # --- SAFETY GUARD: Only write to hardware if configured ---
+        if self.logic_configured:
+            self.gpio.output(self.pins["Heat"], self.RELAY_ON if final_heat_state else self.RELAY_OFF)
+            self.gpio.output(self.pins["Cool"], self.RELAY_ON if final_cool_state else self.RELAY_OFF)
+            self.gpio.output(self.pins["Fan"], self.RELAY_ON if aux_state else self.RELAY_OFF)
+        # ---------------------------------------------------------
 
         # --- 4. Update SettingsManager ---
         self.settings.set("heat_state", "HEATING" if final_heat_state else "Heating OFF")
@@ -187,21 +241,27 @@ class RelayControl:
     def turn_on_fan(self):
         fan_mode = self.settings.get("fan_control_mode", "Auto") 
         if fan_mode in ["Auto", "ON"]:
-            # Removed IS_HARDWARE_AVAILABLE check
-            self.gpio.output(self.pins["Fan"], RELAY_ON)
+            # --- SAFETY GUARD ---
+            if self.logic_configured:
+                self.gpio.output(self.pins["Fan"], self.RELAY_ON)
             self.settings.set("fan_state", "Fan ON")
 
     def turn_off_fan(self):
-        # Removed IS_HARDWARE_AVAILABLE check
-        self.gpio.output(self.pins["Fan"], RELAY_OFF)
+        # --- SAFETY GUARD ---
+        if self.logic_configured:
+            self.gpio.output(self.pins["Fan"], self.RELAY_OFF)
         self.settings.set("fan_state", "Fan OFF")
 
     def turn_off_all_relays(self, skip_aux=False): # Renamed parameter for clarity
-        self.gpio.output(self.pins["Heat"], RELAY_OFF)
-        self.gpio.output(self.pins["Cool"], RELAY_OFF)
-        
+        # --- SAFETY GUARD ---
+        if self.logic_configured:
+            self.gpio.output(self.pins["Heat"], self.RELAY_OFF)
+            self.gpio.output(self.pins["Cool"], self.RELAY_OFF)
+            
+            if not skip_aux: 
+                self.gpio.output(self.pins["Fan"], self.RELAY_OFF)
+
         if not skip_aux: 
-            self.gpio.output(self.pins["Fan"], RELAY_OFF)
             self.settings.set("fan_state", "Aux OFF")
         
         self.settings.set("heat_state", "Heating OFF")
