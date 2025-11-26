@@ -1,8 +1,8 @@
 ## 💻 FermVault Project
 
-The **FermVault app** monitors the temperature of a fermenting product (beer, wine, mead, etc.) inside a refrigerator or freezer. The app turns the refrigerator/freezer on or off, and optionally a heater on or off, to maintain a consistent fermentation temperature. The temperature of the fermenting product can be used as the control-to point. PID regulation ensures accurate temperature control with very little or no overshoot or undershoot of the setpoint temperature. Robust email notifications allow flexible remote monitoring. A "command" mail integration allows remote email control of the FermVault system.
+The **FermVault app** monitors the temperature of a fermenting product (beer, wine, mead, etc.) inside a refrigerator or freezer. The app turns the appliance on or off, and optionally a heater on or off, to maintain a consistent fermentation temperature. The temperature of the fermenting product can be used as the control point. PID regulation ensures accurate temperature control with very little or no overshoot or undershoot of the setpoint temperature. Robust email notifications allow flexible remote monitoring. A "command" integration via email allows remote email control of the FermVault system.
 
-Currently tested only on the Raspberry Pi 3B running Trixie and Bookworm. Should work with RPi4 or RPi5 running the same OS's but not yet tested.
+Currently tested only on the Raspberry Pi3B and Pi4 running Trixie and Bookworm. Should work with RPi5 running the same OS's but not yet tested.
 
 Please **donate $$** if you use the app. See "Support the app" under the Settings & Info menu.
 
@@ -12,18 +12,10 @@ There is also a **KegLevel Monitor** project in the repository. The KegLevel Mon
 
 ## To Install the FermVault App
 
-Open **Terminal** and run these three commands one-after-another to clone the repository, navigate to the project folder, and install the dependencies and app launcher on your RPi::
+Open **Terminal** and run this command. Type carefully and use proper uppercase / lowercase because it matters:
 
 ```bash
-git clone https://github.com/keglevelmonitor/fermvault.git
-```
-
-```bash
-cd ~/fermvault
-```
-
-```bash
-./install.sh
+bash <(curl -sL https://bit.ly/fermvault)
 ```
 
 That's it! You will now find "Fermentation Vault" in your application menu under **Other**. You can use the "Check for Updates" action inside the app to install future updates.
@@ -60,6 +52,7 @@ Installed file structure:
 ├── README.md
 ├── requirements.txt
 ├── install.sh
+├── setup.sh
 ├── update.sh
 ├── fermvault.desktop
 │
