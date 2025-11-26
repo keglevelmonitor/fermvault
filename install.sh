@@ -114,7 +114,11 @@ else
 fi
 
 echo ""
-echo "=========================================="
+echo "==========================================================================="
 echo "   Installation Complete!"
-echo "   Please restart your Raspberry Pi."
-echo "=========================================="
+echo ""
+echo "   At the Applications menu, select Other, Fermentation Vault to run the app."
+echo ""
+echo "   You may need to reboot your RPi to refresh the menu."
+echo "==========================================================================="
+
