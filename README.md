@@ -50,11 +50,12 @@ Installed file structure:
 ├── .gitignore
 ├── LICENSE
 ├── README.md
-├── requirements.txt
-├── install.sh
-├── setup.sh
-├── update.sh
 ├── fermvault.desktop
+├── install.sh
+├── requirements.txt
+├── setup.sh
+├── uninstall.sh
+├── update.sh
 │
 ├── src/
 │   ├── main.py
