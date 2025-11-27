@@ -214,7 +214,7 @@ class MainUIBase:
         
         # 2. Utilities Header
         settings_menu.add_command(label="Utilities", font=self.menu_heading_font, state="disabled")
-        settings_menu.add_command(label="Update Temperature Data", command=lambda: self._handle_actions_menu("Update Temperature Data"))
+        # settings_menu.add_command(label="Update Temperature Data", command=lambda: self._handle_actions_menu("Update Temperature Data"))
         settings_menu.add_command(label="Update API Data", command=lambda: self._handle_actions_menu("Update API Data"))
         settings_menu.add_command(label="Run FG Calculator", command=lambda: self._handle_actions_menu("Run FG Calculator"))
         settings_menu.add_command(label="Reload Brew Sessions", command=lambda: self._handle_actions_menu("Reload Brew Sessions"))
@@ -226,14 +226,26 @@ class MainUIBase:
         settings_menu.add_command(label="Check for Updates", command=lambda: self._handle_actions_menu("Check for Updates"))
         settings_menu.add_command(label="Reset to Defaults", command=lambda: self._handle_actions_menu("Reset to Defaults"))
         
+        # --- NEW: Uninstall Menu Item ---
+        settings_menu.add_command(label="Uninstall App", command=lambda: self._handle_actions_menu("Uninstall App"))
+        # --- END NEW ---
+        
         settings_menu.add_separator()
         
         # 4. App Info Header
         settings_menu.add_command(label="App Info", font=self.menu_heading_font, state="disabled")
-        info_items = ["Wiring Diagram", "Help", "About", "Support this App"]
-        for item in info_items:
-            if item in self.popup_list:
-                settings_menu.add_command(label=item, command=lambda choice=item: self._open_popup_by_name(choice))
+        
+        if "Wiring Diagram" in self.popup_list:
+             settings_menu.add_command(label="Wiring Diagram", command=lambda: self._open_popup_by_name("Wiring Diagram"))
+        
+        if "Help" in self.popup_list:
+             settings_menu.add_command(label="Help", command=lambda: self._open_popup_by_name("Help"))
+
+        if "Support this App" in self.popup_list:
+             settings_menu.add_command(label="Support this App", command=lambda: self._open_popup_by_name("Support this App"))
+
+        if "About" in self.popup_list:
+             settings_menu.add_command(label="About...", command=lambda: self._open_popup_by_name("About"))
         
         row_idx = 0 
         
@@ -273,14 +285,12 @@ class MainUIBase:
         main_grid_row_idx += 1
         
         # --- DATA ROW 2: Beer & Aux Relay ---
-        # --- MODIFICATION: Updated Label, Dropdown, and Binding ---
         ttk.Label(self.main_frame, text="Aux Relay Follows").grid(row=main_grid_row_idx, column=0, sticky='w', padx=5, pady=VERTICAL_PADDING)
         
         aux_options = ["Always OFF", "Always ON", "Monitoring", "Heating", "Cooling", "Crashing"]
         self.aux_dropdown = ttk.Combobox(self.main_frame, textvariable=self.aux_mode_var, values=aux_options, state="readonly", width=13)
         self.aux_dropdown.grid(row=main_grid_row_idx, column=1, sticky='w', padx=5, pady=VERTICAL_PADDING)
         self.aux_dropdown.bind("<<ComboboxSelected>>", self._handle_aux_mode_change)
-        # --- END MODIFICATION ---
 
         ttk.Label(self.main_frame, text="Beer").grid(row=main_grid_row_idx, column=2, sticky='e', padx=5, pady=VERTICAL_PADDING)
         self.beer_target_label = ttk.Label(self.main_frame, textvariable=self.beer_setpoint_var, style='Gray.TLabel', relief='sunken', anchor='center', width=7)
@@ -566,17 +576,12 @@ class MainUIBase:
     def _handle_actions_menu(self, choice):
         print(f"Action triggered: {choice}")
         
-        # --- NEW SPLIT ACTIONS ---
         if choice == "Update API Data":
-            # Runs network call (using notification_manager for threading)
             current_id = self.settings_manager.get("current_brew_session_id")
             if self.notification_manager:
                 self.notification_manager.fetch_api_data_now(current_id, is_scheduled=False) 
             
         elif choice == "Update Temperature Data":
-            # --- MODIFICATION: Check for unassigned sensors and log if needed ---
-            # We check the configuration before triggering the update to ensure 
-            # the user gets immediate feedback if their settings are invalid.
             beer_sensor = self.settings_manager.get("ds18b20_beer_sensor")
             amb_sensor = self.settings_manager.get("ds18b20_ambient_sensor")
             
@@ -585,24 +590,16 @@ class MainUIBase:
             
             if amb_sensor == "unassigned":
                 self.log_system_message("Ambient sensor is unassigned. Please set in System Settings.")
-            # --------------------------------------------------------------------
             
-            # Forces the monitoring thread to do a synchronous sensor read and UI push
             self.temp_controller.update_control_logic_and_ui_data()
-        # -------------------------
             
         elif choice == "Send Status Message":
              if self.notification_manager:
                 self.notification_manager.send_manual_status_message()
              
         elif choice == "Reload Brew Sessions":
-             # --- MODIFICATION: Check for API OFF and log if needed ---
-             # This mirrors the error message provided by the NotificationManager
-             # when attempting other API actions while the service is OFF.
              if self.settings_manager.get("active_api_service") == "OFF":
                  self.log_system_message("API service is OFF. Cannot fetch data.")
-             # ---------------------------------------------------------
-             
              self._populate_brew_session_dropdown()
 
         elif choice == "Run FG Calculator":
@@ -610,11 +607,20 @@ class MainUIBase:
                 self.notification_manager.run_fg_calc_and_update_ui()
         
         elif choice == "Check for Updates":
-             # This calls the new Keglevel-style check logic
              self._check_for_updates() 
                 
         elif choice == "Reset to Defaults":
              self._confirm_and_reset_defaults()
+             
+        # --- NEW: Uninstall Handler ---
+        elif choice == "Uninstall App":
+             if hasattr(self, '_open_popup_by_name'):
+                 # This will call the popup manager's method directly
+                 # We assume 'Uninstall App' isn't in the name list but handled here or we expose it.
+                 # Since UIManager inherits PopupManager, we can call it directly.
+                 if hasattr(self, '_open_uninstall_app_popup'):
+                     self._open_uninstall_app_popup()
+        # --- END NEW ---
         
     def _populate_brew_session_dropdown(self):
         """
@@ -1344,4 +1350,3 @@ class MainUIBase:
         finally:
             # Always re-enable the standard close button so user isn't stuck
             self.root.after(0, lambda: close_btn.config(state="normal"))
-

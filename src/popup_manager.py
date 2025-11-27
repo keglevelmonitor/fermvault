@@ -2190,13 +2190,12 @@ class PopupManager:
 
         # --- 2. Reset UI Variables ---
         
-        # --- MODIFICATION: Pre-select "I agree" if previously agreed ---
+        # Pre-select "I agree" if previously agreed
         has_agreed = self.settings_manager.get("eula_agreed", False)
         if has_agreed:
             self.eula_agreement_var.set(1) # 1 = agree
         else:
             self.eula_agreement_var.set(0) # 0 = unset
-        # --- END MODIFICATION ---
         
         # Load the saved setting for "show on launch"
         # The checkbox var is "Do not show", so its state is the *inverse*
@@ -2213,6 +2212,10 @@ class PopupManager:
         top_frame.grid_columnconfigure(0, weight=1) # Text column
         top_frame.grid_columnconfigure(1, weight=0) # Image column
 
+        # Text Container
+        text_container = ttk.Frame(top_frame)
+        text_container.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
+
         support_text = (
             "This App took hundreds of hours to develop, test, and optimize. "
             "Please consider supporting this App with a donation so continuous improvements "
@@ -2221,36 +2224,46 @@ class PopupManager:
             "requests without a donation may not be considered for response."
         )
         
-        # --- MODIFICATION: Increased wraplength from 400 to 520 ---
-        text_label = ttk.Label(top_frame, text=support_text, wraplength=520, justify="left")
-        text_label.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
+        text_label = ttk.Label(text_container, text=support_text, wraplength=520, justify="left")
+        text_label.pack(anchor="w", fill="x")
+        
+        # Bold Donation Line
+        try:
+            default_font = tkfont.nametofont("TkDefaultFont")
+            bold_font = default_font.copy()
+            bold_font.config(weight="bold")
+        except:
+            bold_font = ('TkDefaultFont', 10, 'bold')
+
+        bold_text = "Use your phone to scan the QR code and donate to this project."
+        bold_label = ttk.Label(text_container, text=bold_text, font=bold_font, wraplength=520, justify="left")
+        bold_label.pack(anchor="w", fill="x", pady=(5, 0))
         
         if self.support_qr_image:
             qr_label = ttk.Label(top_frame, image=self.support_qr_image)
-            qr_label.grid(row=0, column=1, sticky="e")
+            qr_label.grid(row=0, column=1, sticky="ne")
         else:
             qr_placeholder = ttk.Label(top_frame, text="[QR Code Image Missing]", relief="sunken", padding=20)
-            qr_placeholder.grid(row=0, column=1, sticky="e")
+            qr_placeholder.grid(row=0, column=1, sticky="ne")
             
         # --- EULA Section ---
         eula_frame = ttk.LabelFrame(main_frame, text="End User License Agreement (EULA)", padding=10)
         eula_frame.pack(fill="both", expand=True, pady=(0, 15))
         
-        eula_text_widget = scrolledtext.ScrolledText(eula_frame, height=10, wrap="word", relief="flat")
+        # --- MODIFICATION: Reduced height to 6 to fit smaller window ---
+        eula_text_widget = scrolledtext.ScrolledText(eula_frame, height=6, wrap="word", relief="flat")
         eula_text_widget.pack(fill="both", expand=True)
+        # --- END MODIFICATION ---
         
-        # --- THIS IS THE FIX ---
         # 1. Define tags
         try:
-            default_font = tkfont.nametofont("TkDefaultFont")
-            bold_font = default_font.copy()
-            bold_font.config(weight="bold")
+            # We already defined bold_font above
             eula_text_widget.tag_configure("bold", font=bold_font)
         except:
             eula_text_widget.tag_configure("bold", font=('TkDefaultFont', 10, 'bold'))
         
-        # 2. Insert content line by line, applying tags as we go
-        eula_text_widget.config(state="normal") # Enable editing to insert text
+        # 2. Insert content
+        eula_text_widget.config(state="normal")
         
         eula_text_widget.insert("end", "End User License Agreement (EULA)\n\n", "bold")
         
@@ -2275,8 +2288,7 @@ class PopupManager:
             "You use this app entirely at your own risk.\n"
         ))
         
-        eula_text_widget.config(state="disabled") # Make read-only
-        # --- END OF FIX ---
+        eula_text_widget.config(state="disabled")
 
         # --- Agreement Section ---
         agreement_frame = ttk.Frame(main_frame)
@@ -2316,9 +2328,9 @@ class PopupManager:
         # --- 4. Finalize Popup ---
         popup.update_idletasks()
         
-        # --- MODIFICATION: Use dynamic centering ---
-        popup_width = 720
-        popup_height = popup.winfo_height()
+        # --- MODIFICATION: 780x520 to fit 800x600 screen with launch bar ---
+        popup_width = 780
+        popup_height = 520
         self._center_popup(popup, popup_width, popup_height)
         # --- END MODIFICATION ---
         
@@ -2411,5 +2423,161 @@ class PopupManager:
             # User clicked Cancel (False) -> Re-open the EULA popup
             # Force it as a 'launch' popup to ensure it's modal
             self._open_support_popup(is_launch=True)
+     
+    # --- NEW: UNINSTALL POPUP LOGIC ---
             
+    def _open_uninstall_app_popup(self):
+        popup = tk.Toplevel(self.root)
+        popup.title("Uninstall Application")
+        popup.geometry("500x480") 
+        popup.transient(self.root)
+        popup.grab_set()
+        
+        self._center_popup(popup, 500, 480)
+
+        main_frame = ttk.Frame(popup, padding="20")
+        main_frame.pack(expand=True, fill="both")
+
+        # Warning Icon/Header
+        ttk.Label(main_frame, text="⚠ WARNING: Permanent Deletion", 
+                  foreground="red", font=('TkDefaultFont', 12, 'bold')).pack(pady=(0, 10))
+
+        # Selection Variables
+        delete_app_var = tk.BooleanVar(value=False)
+        delete_data_var = tk.BooleanVar(value=False)
+
+        # Selection Frame
+        select_frame = ttk.LabelFrame(main_frame, text="Select items to remove:", padding=10)
+        select_frame.pack(fill="x", pady=(0, 15))
+
+        # Checkbox 1: App
+        app_chk = ttk.Checkbutton(select_frame, text="Application Files", variable=delete_app_var)
+        app_chk.pack(anchor="w")
+        ttk.Label(select_frame, text="Removes ~/fermvault, shortcuts, and autostart.", 
+                  font=('TkDefaultFont', 10, 'italic'), foreground="#555").pack(anchor="w", padx=(20, 0), pady=(0, 5))
+
+        # Checkbox 2: Data
+        data_chk = ttk.Checkbutton(select_frame, text="User Data & Settings", variable=delete_data_var)
+        data_chk.pack(anchor="w")
+        ttk.Label(select_frame, text="Removes ~/fermvault-data (Logs, Settings).", 
+                  font=('TkDefaultFont', 10, 'italic'), foreground="#555").pack(anchor="w", padx=(20, 0))
+
+        # Confirmation Entry
+        confirm_frame = ttk.Frame(main_frame)
+        confirm_frame.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(confirm_frame, text="Type 'YES' to confirm:").pack(side="left", padx=(0, 10))
+        
+        confirm_var = tk.StringVar()
+        entry = ttk.Entry(confirm_frame, textvariable=confirm_var, width=10)
+        entry.pack(side="left")
+        entry.focus_set()
+        
+        # Reset Hint
+        reset_text = (
+            "To reset all settings to their default values without uninstalling, click Cancel "
+            "and select 'Reset to Defaults' from the settings menu."
+        )
+        ttk.Label(main_frame, text=reset_text, wraplength=450, justify="left", 
+                  font=('TkDefaultFont', 8)).pack(pady=(0, 10))
+
+        # Buttons
+        btn_frame = ttk.Frame(popup, padding="10")
+        btn_frame.pack(fill="x", side="bottom")
+
+        uninstall_btn = ttk.Button(btn_frame, text="Uninstall Selected", state="disabled",
+                                   command=lambda: self._execute_uninstall_app(popup, confirm_var, delete_app_var, delete_data_var))
+        uninstall_btn.pack(side="right", padx=5)
+        
+        ttk.Button(btn_frame, text="Cancel", command=popup.destroy).pack(side="right", padx=5)
+
+        # Trace to enable button
+        def check_input(*args):
+            is_yes = (confirm_var.get() == "YES")
+            is_selection_made = (delete_app_var.get() or delete_data_var.get())
+            
+            if is_yes and is_selection_made:
+                uninstall_btn.config(state="normal")
+            else:
+                uninstall_btn.config(state="disabled")
+                
+        confirm_var.trace_add("write", check_input)
+        delete_app_var.trace_add("write", check_input)
+        delete_data_var.trace_add("write", check_input)
+
+    def _execute_uninstall_app(self, popup_window, confirm_var, delete_app_var, delete_data_var):
+        if confirm_var.get() != "YES":
+            return
+            
+        delete_app = delete_app_var.get()
+        delete_data = delete_data_var.get()
+        
+        if not delete_app and not delete_data:
+            return 
+
+        try:
+            print("Uninstall: Starting uninstallation process...")
+            
+            # 1. Define Paths
+            # self.ui.base_dir is likely src/. Parent is ~/fermvault
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            app_root_dir = os.path.abspath(os.path.join(base_dir, "..")) 
+            data_dir = self.settings_manager.data_dir # Already defined in settings manager
+            
+            autostart_file = os.path.expanduser("~/.config/autostart/fermvault.desktop")
+            desktop_shortcut = os.path.expanduser("~/.local/share/applications/fermvault.desktop")
+            
+            actions_taken = []
+
+            # 2. Remove App Files
+            if delete_app:
+                # Remove Autostart (Direct implementation)
+                if os.path.exists(autostart_file):
+                    try:
+                        os.remove(autostart_file)
+                        print(f"Uninstall: Removed autostart file: {autostart_file}")
+                    except Exception as e:
+                        print(f"Uninstall Warning: Could not remove autostart: {e}")
+
+                # Remove Desktop Shortcut
+                if os.path.exists(desktop_shortcut):
+                    try:
+                        os.remove(desktop_shortcut)
+                        print(f"Uninstall: Removed desktop shortcut: {desktop_shortcut}")
+                    except Exception as e:
+                        print(f"Uninstall Warning: Could not remove shortcut: {e}")
+
+                # Delete App Directory
+                if os.path.exists(app_root_dir):
+                    try:
+                        shutil.rmtree(app_root_dir)
+                        actions_taken.append("Application Files")
+                        print(f"Uninstall: Deleted app directory: {app_root_dir}")
+                    except Exception as e:
+                        # Since we are running FROM this directory, Windows fails here. Linux usually allows deletion of running script dir.
+                        # If it fails, we log it.
+                        messagebox.showerror("Uninstall Error", f"Could not fully delete app directory (Open files?):\n{e}", parent=popup_window)
+                        return
+                    
+            # 3. Remove Data Files
+            if delete_data:
+                if os.path.exists(data_dir):
+                    shutil.rmtree(data_dir)
+                    actions_taken.append("User Data")
+                    print(f"Uninstall: Deleted data directory: {data_dir}")
+
+            # 4. Success & Exit
+            msg = f"Selected items have been removed:\n- {', '.join(actions_taken)}\n\nThe program will now exit."
+            messagebox.showinfo("Uninstall Complete", msg, parent=popup_window)
+            
+            popup_window.destroy()
+            self.ui._on_closing_ui() 
+            sys.exit(0) 
+
+        except Exception as e:
+            messagebox.showerror("Uninstall Error", 
+                                 f"An error occurred during uninstallation:\n{e}\n\n"
+                                 "Some files may need to be deleted manually.", 
+                                 parent=popup_window)
+            print(f"Uninstall Critical Error: {e}")
             
