@@ -54,7 +54,7 @@ class RelayControl:
         # --- END NEW ---
         
         self._setup_gpio()
-        
+
     def set_logger(self, logger_callable):
         """Assigns the UI's logging function to this class."""
         self.logger = logger_callable
@@ -125,16 +125,19 @@ class RelayControl:
         except Exception as e:
             print(f"[RelayControl] Setup test failed: {e}")
 
+    # FIXED
     def _is_cooling_on(self):
         if not self.logic_configured: return False
         return self.gpio.input(self.pins["Cool"]) == self.RELAY_ON
-
+        
+    # FIXED
     def _is_heating_on(self):
         if not self.logic_configured: return False
         return self.gpio.input(self.pins["Heat"]) == self.RELAY_ON
 
     # --- RELAY CONTROL AND PROTECTION ENFORCEMENT ---
 
+    # FIXED
     def set_desired_states(self, desired_heat, desired_cool, control_mode, aux_override=False):
         """
         Receives simple ON/OFF commands and executes them after enforcing constraints.
@@ -238,6 +241,7 @@ class RelayControl:
         return final_heat_state, final_cool_state
 
     # --- FAN CONTROL ---
+    # FIXED
     def turn_on_fan(self):
         fan_mode = self.settings.get("fan_control_mode", "Auto") 
         if fan_mode in ["Auto", "ON"]:
@@ -246,12 +250,14 @@ class RelayControl:
                 self.gpio.output(self.pins["Fan"], self.RELAY_ON)
             self.settings.set("fan_state", "Fan ON")
 
+    # FIXED
     def turn_off_fan(self):
         # --- SAFETY GUARD ---
         if self.logic_configured:
             self.gpio.output(self.pins["Fan"], self.RELAY_OFF)
         self.settings.set("fan_state", "Fan OFF")
 
+    # FIXED
     def turn_off_all_relays(self, skip_aux=False): # Renamed parameter for clarity
         # --- SAFETY GUARD ---
         if self.logic_configured:

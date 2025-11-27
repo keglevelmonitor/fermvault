@@ -54,6 +54,7 @@ class SettingsManager:
             "temp_units": "F", # F or C
         }
 
+    # FIXED
     def _get_default_system_settings(self):
         return {
             # "license_key": "" <-- REMOVED
@@ -240,6 +241,8 @@ class SettingsManager:
         # Load all settings
         self._load_settings()
 
+
+    # FIXED
     def _load_settings(self):
         try:
             with self._data_lock:

@@ -974,15 +974,13 @@ class PopupManager:
         popup.update_idletasks(); popup.withdraw()
         self._center_popup(popup, 600, popup.winfo_height())
         
+    # FIXED
     def _save_system_settings(self, popup):
         try:
             # --- FIX: Get OLD settings *before* saving new ones ---
             old_comp_settings = self.settings_manager.get_all_compressor_protection_settings()
             old_beer_sensor = self.settings_manager.get("ds18b20_beer_sensor", "unassigned")
             old_amb_sensor = self.settings_manager.get("ds18b20_ambient_sensor", "unassigned")
-            # --- MODIFICATION: Get old PID logging state (REMOVED) ---
-            # old_pid_logging_state = self.settings_manager.get("pid_logging_enabled", False)
-            # --- END MODIFICATION ---
 
             # 1. Save Compressor Protection (convert minutes to seconds)
             new_dwell_min = int(self._to_float_or_error(self.dwell_time_min_var.get()))
@@ -1005,11 +1003,6 @@ class PopupManager:
             
             self.settings_manager.set("ds18b20_beer_sensor", new_beer_sensor)
             self.settings_manager.set("ds18b20_ambient_sensor", new_amb_sensor)
-            
-            # --- MODIFICATION: Save PID logging state (REMOVED) ---
-            # new_pid_logging_state = self.pid_logging_var.get()
-            # self.settings_manager.set("pid_logging_enabled", new_pid_logging_state)
-            # --- END MODIFICATION ---
             
             # --- 3. Generate "Robust" System Message ---
             log_parts = []
@@ -1039,11 +1032,6 @@ class PopupManager:
             elif new_amb_sensor == 'unassigned' and old_amb_sensor != 'unassigned':
                  log_parts.append("Ambient sensor unassigned.")
             
-            # --- MODIFICATION: Check for PID logging change (REMOVED) ---
-            # if new_pid_logging_state != old_pid_logging_state:
-            #    log_parts.append(f"PID Logging {'enabled' if new_pid_logging_state else 'disabled'}.")
-            # --- END MODIFICATION ---
-            
             if log_parts:
                 message = "System settings saved. " + " ".join(log_parts)
             else:
@@ -1052,8 +1040,15 @@ class PopupManager:
             self.ui.log_system_message(message)
             # ---------------------------------------------------------------------------------
             
+            # --- CRITICAL FIX: SAFETY SHUTDOWN ---
+            # If we were in Test Mode (Monitoring OFF), we must ensure relays 
+            # are turned OFF when the window closes, even if we clicked "Save".
+            if self.ui.monitoring_var.get() == "OFF":
+                 self.temp_controller.relay_control.turn_off_all_relays()
+            # -------------------------------------
+
             popup.destroy()
-            self.root.update() # <-- FIX: Force UI loop to run
+            self.root.update() # Force UI loop to run
             
         except ValueError as e:
             messagebox.showerror("Input Error", f"Please enter valid whole numbers for times. ({e})", parent=popup)
@@ -1828,6 +1823,7 @@ class PopupManager:
             self.ui.log_system_message(f"Error loading support image: {e}")
             self.support_qr_image = None
             
+    # FIXED
     def _load_relay_led_image(self):
         """Loads the relay LED diagram image and stores it."""
         if self.relay_led_image:
@@ -1850,8 +1846,9 @@ class PopupManager:
         except Exception as e:
             self.ui.log_system_message(f"Error loading relay LED image: {e}")
             self.relay_led_image = None
-            
-    # --- SYSTEM SETTINGS ---
+
+
+    # FIXED
     def _open_system_settings_popup(self):
         popup = tk.Toplevel(self.root)
         popup.title("System Settings")
@@ -2076,17 +2073,55 @@ class PopupManager:
         ttk.Button(btns_frame, text="Save", command=lambda: self._save_system_settings(popup)).pack(side="right", padx=5)
         
         def on_close():
-            if not is_monitoring and (self.test_heat_var.get() or self.test_cool_var.get() or self.test_aux_var.get()):
+            # CRITICAL SAFETY: Kill all relays on close if we were in test mode
+            if not is_monitoring:
                  self.temp_controller.relay_control.turn_off_all_relays()
             popup.destroy()
             
-        ttk.Button(btns_frame, text="Close", command=on_close).pack(side="right")
+        # --- TEXT CHANGE: "Close" -> "Cancel" ---
+        ttk.Button(btns_frame, text="Cancel", command=on_close).pack(side="right")
         popup.protocol("WM_DELETE_WINDOW", on_close) 
 
         popup.update_idletasks()
         popup.withdraw()
         self._center_popup(popup, 550, 450)
+        
+    # FIXED
+    def _finalize_relay_setup(self, popup, active_high):
+        """Saves the detected logic and initializes the relays."""
+        try:
+            # 1. Save Settings
+            self.settings_manager.set("relay_active_high", active_high)
+            self.settings_manager.set("relay_logic_configured", True)
             
+            # 2. Update Controller Live
+            rc = self.temp_controller.relay_control
+            rc.logic_configured = True
+            
+            # --- CRITICAL FIX ---
+            # Pass initial_setup=True to update constants WITHOUT attempting 
+            # to write to the GPIO pins yet. The pins are still INPUTs here; 
+            # writing to them causes the crash.
+            rc.update_relay_logic(initial_setup=True)
+            # --------------------
+            
+            # 3. Initialize Pins (Switch from INPUT to OUT/OFF)
+            # This applies the configuration safely to the hardware.
+            rc._setup_gpio() 
+            
+            popup.destroy()
+            
+            # --- TEXT FIX: Removed "(Standard)" ---
+            mode_str = "Active High" if active_high else "Active Low"
+            
+            self.ui.log_system_message(f"Relay logic configured: {mode_str}")
+            
+            messagebox.showinfo("Setup Complete", f"Relay logic has been configured as:\n{mode_str}")
+            
+        except Exception as e:
+            messagebox.showerror("Setup Error", f"Failed to apply relay settings: {e}")
+
+    # FIXED
     def _open_relay_setup_wizard(self):
         """
         Opens a wizard that forces the AUX relay LOW and asks the user
@@ -2142,40 +2177,6 @@ class PopupManager:
         # Increased size to accommodate image (Approx 500x580)
         self._center_popup(popup, 500, 580)
         
-    def _finalize_relay_setup(self, popup, active_high):
-        """Saves the detected logic and initializes the relays."""
-        try:
-            # 1. Save Settings
-            self.settings_manager.set("relay_active_high", active_high)
-            self.settings_manager.set("relay_logic_configured", True)
-            
-            # 2. Update Controller Live
-            rc = self.temp_controller.relay_control
-            rc.logic_configured = True
-            
-            # --- CRITICAL FIX ---
-            # Pass initial_setup=True to update constants WITHOUT attempting 
-            # to write to the GPIO pins yet. The pins are still INPUTs here; 
-            # writing to them causes the crash.
-            rc.update_relay_logic(initial_setup=True)
-            # --------------------
-            
-            # 3. Initialize Pins (Switch from INPUT to OUT/OFF)
-            # This applies the configuration safely to the hardware.
-            rc._setup_gpio() 
-            
-            popup.destroy()
-            
-            # --- TEXT FIX: Removed "(Standard)" ---
-            mode_str = "Active High" if active_high else "Active Low"
-            
-            self.ui.log_system_message(f"Relay logic configured: {mode_str}")
-            
-            messagebox.showinfo("Setup Complete", f"Relay logic has been configured as:\n{mode_str}")
-            
-        except Exception as e:
-            messagebox.showerror("Setup Error", f"Failed to apply relay settings: {e}")
-
     def _open_support_popup(self, is_launch=False):
         """
         Displays the 'Support this App' popup, which includes the EULA.
@@ -2333,6 +2334,7 @@ class PopupManager:
             popup.transient(self.root)
             popup.grab_set()
             
+    # FIXED
     def _handle_support_popup_close(self, popup):
         """Handles the logic for the 'Close' button on the Support/EULA popup."""
         
@@ -2389,7 +2391,7 @@ class PopupManager:
                                    "You must select 'I agree' or 'I do not agree' to proceed.", 
                                    parent=popup)
             return
-            
+
     def _show_disagree_dialog(self):
         """Shows the final confirmation dialog when user disagrees with EULA."""
         
