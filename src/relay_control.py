@@ -8,11 +8,59 @@ import time
 from datetime import datetime
 import os
 import sys
-import RPi.GPIO as GPIO # Import the real RPi.GPIO library directly
+
+# --- HARDWARE IMPORT: RPi.GPIO on Linux, MockGPIO on Windows ---
+try:
+    import RPi.GPIO as GPIO
+    GPIO.setmode(GPIO.BCM)
+    IS_RASPBERRY_PI_MODE = True
+except (ImportError, RuntimeError):
+    print("WARNING: RPi.GPIO not found. Running in simulation mode (Windows).")
+    IS_RASPBERRY_PI_MODE = False
+
+    class MockGPIO:
+        BCM = 11
+        HIGH = 1
+        LOW = 0
+        IN = 1
+        OUT = 0
+        _pin_state = {}
+
+        @classmethod
+        def setmode(cls, mode):
+            pass
+
+        @classmethod
+        def getmode(cls):
+            return cls.BCM
+
+        @classmethod
+        def setwarnings(cls, flag):
+            pass
+
+        @classmethod
+        def setup(cls, pin, mode, pull_up_down=None):
+            if mode == cls.OUT and pin not in cls._pin_state:
+                cls._pin_state[pin] = cls.LOW
+            pass
+
+        @classmethod
+        def output(cls, pin, state):
+            cls._pin_state[pin] = state
+
+        @classmethod
+        def input(cls, pin):
+            return cls._pin_state.get(pin, cls.LOW)
+
+        @classmethod
+        def cleanup(cls):
+            cls._pin_state.clear()
+            pass
+
+    GPIO = MockGPIO
 
 # --- GPIO SETUP ---
-# Set BCM mode globally ONCE at import time
-GPIO.setmode(GPIO.BCM) 
+GPIO.setmode(GPIO.BCM)
 
 # Define Relay States (RELAY_OFF = HIGH, RELAY_ON = LOW)
 RELAY_OFF = GPIO.HIGH

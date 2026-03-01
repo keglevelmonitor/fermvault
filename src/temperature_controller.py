@@ -10,7 +10,13 @@ import time
 from datetime import datetime
 import glob
 import os
+import sys
 import csv
+
+# Mock temps for Windows (no DS18B20 hardware)
+MOCK_BEER_TEMP_F = 68.0
+MOCK_AMBIENT_TEMP_F = 70.0
+MOCK_SENSOR_IDS = ["28-MOCK-BEER001", "28-MOCK-AMBIENT1"]
 
 # --- PID CLASS DEFINITION ---
 class PID:
@@ -280,22 +286,28 @@ class TemperatureController:
     def read_ambient_temperature(self):
         """Reads the ambient temperature (F) from the assigned sensor."""
         sensor_id = self.settings_manager.get("ds18b20_ambient_sensor", "unassigned")
-        # --- FIX: Return None if unassigned, not a mock value ---
-        if sensor_id == 'unassigned': return None 
-        # --- END FIX ---
+        if sensor_id == 'unassigned':
+            return None
+        # Windows: No DS18B20 hardware - return mock temp for UX demo
+        if sys.platform == 'win32':
+            return MOCK_AMBIENT_TEMP_F
         return self._read_temp_from_id(sensor_id)
 
     def read_beer_temperature(self):
         """Reads the beer temperature (F) from the assigned sensor."""
-        sensor_id = self.settings_manager.get("ds18b20_beer_sensor", "unassigned") 
-        # --- FIX: Return None if unassigned, not a mock value ---
-        if sensor_id == 'unassigned': return None 
-        # --- END FIX ---
+        sensor_id = self.settings_manager.get("ds18b20_beer_sensor", "unassigned")
+        if sensor_id == 'unassigned':
+            return None
+        # Windows: No DS18B20 hardware - return mock temp for UX demo
+        if sys.platform == 'win32':
+            return MOCK_BEER_TEMP_F
         return self._read_temp_from_id(sensor_id)
 
     def detect_ds18b20_sensors(self):
         """Finds all available DS18B20 sensors (for settings popup)."""
-        # Removed 'is_hardware_available' check
+        # Windows: No 1-Wire bus - return mock IDs for UX demo
+        if sys.platform == 'win32':
+            return list(MOCK_SENSOR_IDS)
         base_dir = '/sys/bus/w1/devices/'
         device_folders = glob.glob(base_dir + '28-*')
         return [os.path.basename(f) for f in device_folders]
