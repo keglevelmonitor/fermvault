@@ -1339,11 +1339,21 @@ class FermVaultApp(App):
         
         def _check():
             try:
+                src_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(src_dir)
+
+                popen_kwargs = {
+                    "stderr": subprocess.STDOUT,
+                    "cwd": project_root
+                }
+                if sys.platform == "win32":
+                    popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
                 # Fetch latest data from origin (Blocking I/O)
-                subprocess.check_output(["git", "fetch"], stderr=subprocess.STDOUT)
+                subprocess.check_output(["git", "fetch"], **popen_kwargs)
                 
                 # Check status (Blocking I/O)
-                status = subprocess.check_output(["git", "status", "-uno"], text=True)
+                status = subprocess.check_output(["git", "status", "-uno"], text=True, **popen_kwargs)
                 
                 # Define the UI update logic to run back on the main thread
                 def update_ui(dt):
