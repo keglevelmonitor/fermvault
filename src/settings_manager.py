@@ -70,8 +70,8 @@ class SettingsManager:
             # --- NEW: Window Persistence Defaults ---
             "window_x": -1,       # -1 lets the OS decide initial placement
             "window_y": -1,
-            "window_width": 800,  # Default matches Kivy Config
-            "window_height": 417,
+            "window_width": 800,
+            "window_height": 418,
             # ----------------------------------------
 
             "brew_session_title": "",

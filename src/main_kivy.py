@@ -39,8 +39,10 @@ Config.set('kivy', 'window_icon', icon_path)
 # --- 1. KIVY CONFIGURATION ---
 from kivy.config import Config
 Config.set('graphics', 'width', '800')
-Config.set('graphics', 'height', '417')
-Config.set('graphics', 'resizable', '0')
+Config.set('graphics', 'height', '418')
+Config.set('graphics', 'resizable', '1')
+Config.set('graphics', 'minimum_width', '800')
+Config.set('graphics', 'minimum_height', '418')
 
 from kivy.app import App
 from kivy.lang import Builder
@@ -409,6 +411,9 @@ class FermVaultApp(App):
         # self.sm.add_widget(self.info_screen)
         self.sm.current = 'dashboard'
 
+        from kivy.core.window import Window
+        Window.minimum_width = 800
+        Window.minimum_height = 418
         Clock.schedule_once(self.start_backend, 0.2)
         return self.sm
 
@@ -438,18 +443,19 @@ class FermVaultApp(App):
             saved_x = self.settings_manager.get("window_x", -1)
             saved_y = self.settings_manager.get("window_y", -1)
             saved_w = self.settings_manager.get("window_width", 800)
-            saved_h = self.settings_manager.get("window_height", 417)
-            
+            saved_h = self.settings_manager.get("window_height", 418)
+
             # Restore Position if valid
             if saved_x != -1 and saved_y != -1:
                 Window.left = int(saved_x)
                 Window.top = int(saved_y)
-                
-            # Restore Size (Optional, mostly for if resizable is enabled later)
-            if saved_w > 0 and saved_h > 0:
-                Window.size = (int(saved_w), int(saved_h))
-                
-            self.log_system_message(f"Window persistence: Pos({saved_x}, {saved_y}) Size({saved_w}x{saved_h})")
+
+            # Restore Size, clamped to minimum 800x418
+            safe_w = max(int(saved_w), 800) if saved_w > 0 else 800
+            safe_h = max(int(saved_h), 418) if saved_h > 0 else 418
+            Window.size = (safe_w, safe_h)
+
+            self.log_system_message(f"Window persistence: Pos({saved_x}, {saved_y}) Size({safe_w}x{safe_h})")
             # -----------------------------------------
 
             # 2. Initialize Components
@@ -1280,15 +1286,17 @@ class FermVaultApp(App):
         """
         print("[App] Controlled shutdown initiated (on_stop)...")
         
-        # --- NEW: Save Window Position/Size ---
+        # --- Save Window Position/Size ---
         try:
             from kivy.core.window import Window
             if hasattr(self, 'settings_manager') and self.settings_manager:
+                safe_w = max(Window.size[0], 800)
+                safe_h = max(Window.size[1], 418)
                 self.settings_manager.set("window_x", Window.left)
                 self.settings_manager.set("window_y", Window.top)
-                self.settings_manager.set("window_width", Window.size[0])
-                self.settings_manager.set("window_height", Window.size[1])
-                print(f"[App] Saved window state: Pos({Window.left},{Window.top}) Size({Window.size})")
+                self.settings_manager.set("window_width", safe_w)
+                self.settings_manager.set("window_height", safe_h)
+                print(f"[App] Saved window state: Pos({Window.left},{Window.top}) Size({safe_w}x{safe_h})")
         except Exception as e:
             print(f"[App] Failed to save window state: {e}")
         # --------------------------------------
