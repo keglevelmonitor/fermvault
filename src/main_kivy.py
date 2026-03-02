@@ -1359,50 +1359,50 @@ class FermVaultApp(App):
 
     def run_update_script(self):
         self.update_log_text += "\n\n[STARTING INSTALLATION]...\n"
-        self.is_update_available = False 
-        
+        self.is_update_available = False
+
         def _install():
-            script_url = "https://github.com/keglevelmonitor/fermvault/raw/main/update.sh"
-            
             try:
-                # 1. Determine Project Root (One level up from 'src') 
-                # current file is in .../fermvault/src
                 src_dir = os.path.dirname(os.path.abspath(__file__))
                 project_root = os.path.dirname(src_dir)
-                
-                local_script_path = os.path.join(project_root, "update.sh")
 
-                # 2. Download the script to PROJECT ROOT
-                msg_dl = f"Downloading update script to {local_script_path}...\n"
-                Clock.schedule_once(lambda dt: self._append_update_log(msg_dl), 0)
-                
-                subprocess.run(["curl", "-L", "-o", local_script_path, script_url], check=True)
-                subprocess.run(["chmod", "+x", local_script_path], check=True)
-                
-                # 3. Run the script FROM PROJECT ROOT
-                Clock.schedule_once(lambda dt: self._append_update_log("Executing update.sh...\n"), 0)
-                
-                process = subprocess.Popen(
-                    ["./update.sh"],
-                    cwd=project_root, # <--- CRITICAL FIX: Run inside project root
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True
-                )
-                
-                # Read output line by line
+                if sys.platform == "win32":
+                    # Windows: run update.bat (git pull + pip install, no bash needed)
+                    bat_path = os.path.join(project_root, "update.bat")
+                    Clock.schedule_once(lambda dt: self._append_update_log("Running update.bat...\n"), 0)
+                    process = subprocess.Popen(
+                        ["cmd", "/c", bat_path],
+                        cwd=project_root,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                    )
+                else:
+                    # Linux/Pi: download and run update.sh
+                    script_url = "https://github.com/keglevelmonitor/fermvault/raw/main/update.sh"
+                    local_script_path = os.path.join(project_root, "update.sh")
+                    msg_dl = f"Downloading update script to {local_script_path}...\n"
+                    Clock.schedule_once(lambda dt: self._append_update_log(msg_dl), 0)
+                    subprocess.run(["curl", "-L", "-o", local_script_path, script_url], check=True)
+                    subprocess.run(["chmod", "+x", local_script_path], check=True)
+                    Clock.schedule_once(lambda dt: self._append_update_log("Executing update.sh...\n"), 0)
+                    process = subprocess.Popen(
+                        ["./update.sh"],
+                        cwd=project_root,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                    )
+
                 for line in process.stdout:
                     Clock.schedule_once(lambda dt, l=line: self._append_update_log(l), 0)
-                
                 process.wait()
-                
                 if process.returncode == 0:
                     Clock.schedule_once(lambda dt: self._append_update_log("\n[SUCCESS] Update finished successfully.\nClick RESTART APP to apply changes."), 0)
-                    self.is_install_successful = True
+                    Clock.schedule_once(lambda dt: setattr(self, "is_install_successful", True), 0)
                 else:
                     code = process.returncode
                     Clock.schedule_once(lambda dt: self._append_update_log(f"\n[FAILURE] Script exited with code {code}"), 0)
-
             except Exception as e:
                 err_msg = str(e)
                 Clock.schedule_once(lambda dt: self._append_update_log(f"\n[CRITICAL ERROR] {err_msg}"), 0)
