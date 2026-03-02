@@ -1,4 +1,4 @@
-# test for app update function
+# test for app update function - round 2
 #  
 # fermvault app 
 # FULL FILE CONTENT: main_kivy.py 
