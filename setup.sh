@@ -144,7 +144,7 @@ fi
 if [ -d "$INSTALL_DIR" ]; then
     echo "Directory exists (Update mode)..."
     cd "$INSTALL_DIR" || exit 1
-    git pull
+    git pull --rebase
 else
     echo "Cloning repository to $INSTALL_DIR..."
     git clone https://github.com/keglevelmonitor/fermvault.git "$INSTALL_DIR"
