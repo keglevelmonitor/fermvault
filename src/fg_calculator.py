@@ -66,7 +66,7 @@ class FGCalculator:
                 # --- END MODIFICATION ---
                 
                 # Save data for inspection/debugging
-                with open(self.output_file, "w") as f:
+                with open(self.output_file, "w", encoding='utf-8') as f:
                     json.dump(data, f)
                 return data
             except IOError as e:

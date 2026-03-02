@@ -306,7 +306,7 @@ class SettingsManager:
         try:
             with self._data_lock:
                 # --- MODIFICATION: File path is now correct from __init__ ---
-                with open(self.settings_file, 'w') as f:
+                with open(self.settings_file, 'w', encoding='utf-8') as f:
                     json.dump(self.settings, f, indent=4)
             # --- MODIFICATION START: Remove comment ---
             # (Brew sessions are now saved with all settings)
