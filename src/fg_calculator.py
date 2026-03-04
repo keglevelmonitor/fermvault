@@ -93,7 +93,7 @@ class FGCalculator:
 
         N = len(sg_values)
         if N < window_size:
-            return {"overall_stable": False, "error": "Not enough data"}
+            return {"overall_stable": False, "error": "Not enough data", "total_readings": N}
 
         # 2. Slide the window from newest to oldest
         for start in range(N - window_size, -1, -1):
@@ -105,9 +105,16 @@ class FGCalculator:
             window = sg_values[start : start + window_size]
 
             if self._is_window_stable(window, tolerance, max_outliers):
-                return self._format_result(valid_readings, start, window_size, window)
+                return self._format_result(valid_readings, start, window_size, window, N, tolerance, max_outliers)
 
-        return {"overall_stable": False}
+        # No stable window found — compute diagnostics for the newest window to report
+        newest_start = N - window_size
+        newest_window = sg_values[newest_start : N]
+        diag = self._compute_window_diagnostics(newest_window, tolerance, max_outliers)
+        diag["total_readings"] = N
+        diag["first_timestamp"] = valid_readings[newest_start].get('created_at')
+        diag["last_timestamp"] = valid_readings[N - 1].get('created_at')
+        return {"overall_stable": False, "diagnostics": diag}
 
     def _is_window_stable(self, window_values, tolerance, max_outliers):
         """
@@ -123,25 +130,65 @@ class FGCalculator:
         """
         sorted_vals = sorted(window_values)
         n = len(sorted_vals)
-        # Try every split: remove k from the bottom and (max_outliers - k) from the top
         for k in range(max_outliers + 1):
-            inlier_min = sorted_vals[k]
-            inlier_max = sorted_vals[n - 1 - (max_outliers - k)]
-            if inlier_max - inlier_min <= tolerance:
+            if sorted_vals[n - 1 - (max_outliers - k)] - sorted_vals[k] <= tolerance:
                 return True
         return False
 
-    def _format_result(self, valid_readings, start_index, window_size, window_values):
-        """Helper to format the success response."""
-        first_reading = valid_readings[start_index]
-        last_reading = valid_readings[start_index + window_size - 1]
-        average_sg = sum(window_values) / len(window_values)
+    def _compute_window_diagnostics(self, window_values, tolerance, max_outliers):
+        """
+        Computes diagnostic statistics for a gravity window.
+        Reports the raw min/max/range and the best achievable range after
+        optimal outlier removal, along with how many outliers were needed.
+        """
+        sorted_vals = sorted(window_values)
+        n = len(sorted_vals)
+        raw_range = sorted_vals[-1] - sorted_vals[0]
+
+        best_range = raw_range
+        min_outliers_to_pass = None
+
+        # Try every combination: remove total_removed readings (k from bottom, rest from top)
+        for total_removed in range(max_outliers + 1):
+            for k in range(total_removed + 1):
+                hi = total_removed - k
+                candidate_range = sorted_vals[n - 1 - hi] - sorted_vals[k]
+                if candidate_range < best_range:
+                    best_range = candidate_range
+                if candidate_range <= tolerance and min_outliers_to_pass is None:
+                    min_outliers_to_pass = total_removed
+
+        outliers_reported = min_outliers_to_pass if min_outliers_to_pass is not None else max_outliers
+        ratio = best_range / tolerance if tolerance > 0 else 0.0
 
         return {
-            "overall_stable": True,
+            "window_start_sg": window_values[0],
+            "window_end_sg":   window_values[-1],
+            "window_min":      sorted_vals[0],
+            "window_max":      sorted_vals[-1],
+            "raw_range":       raw_range,
+            "best_range":      best_range,
+            "outliers_used":   outliers_reported,
+            "ratio":           ratio,
+        }
+
+    def _format_result(self, valid_readings, start_index, window_size, window_values, total_readings, tolerance, max_outliers):
+        """Helper to format the success response, including window diagnostics."""
+        first_reading = valid_readings[start_index]
+        last_reading  = valid_readings[start_index + window_size - 1]
+        average_sg    = sum(window_values) / len(window_values)
+
+        diag = self._compute_window_diagnostics(window_values, tolerance, max_outliers)
+        diag["total_readings"]  = total_readings
+        diag["first_timestamp"] = first_reading.get('created_at')
+        diag["last_timestamp"]  = last_reading.get('created_at')
+
+        return {
+            "overall_stable":  True,
             "first_timestamp": first_reading.get('created_at'),
-            "last_timestamp": last_reading.get('created_at'),
-            "average_sg": average_sg,
+            "last_timestamp":  last_reading.get('created_at'),
+            "average_sg":      average_sg,
+            "diagnostics":     diag,
         }
         
     def calculate_fg(self):

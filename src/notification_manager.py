@@ -547,6 +547,76 @@ class NotificationManager:
         except Exception:
             return "--:--"
 
+    def _compute_span_str(self, first_ts_raw, last_ts_raw):
+        """Returns a human-readable elapsed time string (e.g. '5d 3h') between two ISO timestamps."""
+        if not first_ts_raw or not last_ts_raw:
+            return "?"
+        try:
+            dt1 = datetime.fromisoformat(first_ts_raw.replace('Z', '+00:00'))
+            dt2 = datetime.fromisoformat(last_ts_raw.replace('Z', '+00:00'))
+            total_hours = int((dt2 - dt1).total_seconds() // 3600)
+            return f"{total_hours // 24}d {total_hours % 24}h"
+        except Exception:
+            return "?"
+
+    def _log_fg_detail_lines(self, results, tol, win, out):
+        """Logs the diagnostic detail lines that follow the main FG calculation log entry."""
+        if not self.ui:
+            return
+
+        inner = results.get('results') or {}
+        diag  = inner.get('diagnostics') or {}
+
+        # Special case: not enough data — just report the reading count shortfall
+        if inner.get('error') == 'Not enough data':
+            total = inner.get('total_readings', '?')
+            self.ui.log_system_message(f"    Readings: {total} total  |  Need: {win} for stable window")
+            return
+
+        if not diag:
+            return
+
+        total         = diag.get('total_readings', '?')
+        start_sg      = diag.get('window_start_sg')
+        end_sg        = diag.get('window_end_sg')
+        win_min       = diag.get('window_min')
+        win_max       = diag.get('window_max')
+        raw_range     = diag.get('raw_range')
+        best_range    = diag.get('best_range')
+        outliers_used = diag.get('outliers_used', out)
+        ratio         = diag.get('ratio')
+        first_ts_raw  = diag.get('first_timestamp')
+        last_ts_raw   = diag.get('last_timestamp')
+
+        span_str      = self._compute_span_str(first_ts_raw, last_ts_raw)
+        first_ts_local = self._parse_api_timestamp(first_ts_raw, is_scheduled=True) if first_ts_raw else '?'
+
+        self.ui.log_system_message(
+            f"    Readings: {total} total  |  Window: {win} most recent  |  Span: {span_str}"
+        )
+        if start_sg is not None and end_sg is not None:
+            self.ui.log_system_message(
+                f"    Window SG: {start_sg:.4f} (start)  ->  {end_sg:.4f} (end)"
+            )
+        if win_min is not None and win_max is not None and raw_range is not None:
+            self.ui.log_system_message(
+                f"    Min: {win_min:.4f}  |  Max: {win_max:.4f}  |  Raw range: {raw_range:.4f}"
+            )
+        if best_range is not None and ratio is not None:
+            if results.get('stable'):
+                self.ui.log_system_message(
+                    f"    Best range ({outliers_used} outliers removed): {best_range:.4f}  |  {ratio:.1f}x of tolerance"
+                )
+                avg_sg = inner.get('average_sg')
+                if avg_sg is not None:
+                    self.ui.log_system_message(
+                        f"    Avg FG: {avg_sg:.4f}  |  Stable since: {first_ts_local}"
+                    )
+            else:
+                self.ui.log_system_message(
+                    f"    Best range ({outliers_used} outliers removed): {best_range:.4f}  |  {ratio:.1f}x over tolerance"
+                )
+
     def run_fg_calc_and_update_ui(self):
         """Action handler to run FG calculation and update UI status."""
         
@@ -629,6 +699,7 @@ class NotificationManager:
                  log_msg += f" (Tol: {tol}, Win: {win}, Out: {out})"
 
             self.ui.log_system_message(log_msg)
+            self._log_fg_detail_lines(results, tol, win, out)
             self.ui.root.after(0, self.ui._update_data_display)
 
         threading.Thread(target=fg_task, daemon=True).start()
@@ -914,7 +985,8 @@ class NotificationManager:
         print(f"{log_prefix} Scheduled FG Calc complete. Status: {status_msg}")
         
         if self.ui:
-            self.ui.log_system_message(log_msg) 
+            self.ui.log_system_message(log_msg)
+            self._log_fg_detail_lines(results, tol, win, out)
             self.ui.root.after(0, self.ui._update_data_display)
             
     def _send_email_or_sms(self, subject, body, recipient_address, smtp_cfg, message_type_for_log):
