@@ -79,62 +79,57 @@ class FGCalculator:
             
     def _analyze_fermentation(self, data, tolerance, window_size, max_outliers):
         """
-        Analyzes the specific gravity data for stability using an optimized Sliding Window algorithm.
-        Iterates from NEWEST to OLDEST.
+        Analyzes gravity data for stability using a sliding window.
+        A window is considered stable if, after removing at most max_outliers
+        extreme readings, all remaining readings fall within a band of
+        width <= tolerance (i.e., max - min <= tolerance for the inlier set).
+        Iterates from NEWEST to OLDEST to find the most recent stable window.
         Includes thread yielding to prevent UI freeze during long history scans.
         """
         # 1. Filter valid readings
         all_readings = data.get('readings', [])
         valid_readings = [r for r in all_readings if r.get('gravity') is not None]
         sg_values = [r.get('gravity') for r in valid_readings]
-        
+
         N = len(sg_values)
         if N < window_size:
             return {"overall_stable": False, "error": "Not enough data"}
 
-        # 2. Initialize the FIRST window (The Newest Window)
-        # Indices: [N-window_size ... N-1]
-        current_start_index = N - window_size
-        current_window = sg_values[current_start_index : N]
-        current_outliers = 0
-        
-        # Calculate initial outliers for the newest window
-        for j in range(len(current_window) - 1):
-            if abs(current_window[j+1] - current_window[j]) > tolerance:
-                current_outliers += 1
+        # 2. Slide the window from newest to oldest
+        for start in range(N - window_size, -1, -1):
 
-        # Check if the newest window is stable
-        if current_outliers <= max_outliers:
-            return self._format_result(valid_readings, current_start_index, window_size, current_window)
-
-        # 3. Sliding Window Loop (Backwards)
-        # We slide the window to the LEFT (towards the past).
-        for i in range(N - window_size - 1, -1, -1):
-            
-            # --- FIX: Yield to UI thread every 500 iterations ---
-            # This prevents the calculation from "starving" the UI and making it look frozen.
-            if i % 500 == 0:
+            # Yield to UI thread periodically to prevent freezing
+            if start % 500 == 0:
                 time.sleep(0)
-            # ----------------------------------------------------
 
-            # A. HANDLE RIGHT EDGE (Leaving the window)
-            val_right_1 = sg_values[i + window_size - 1]
-            val_right_2 = sg_values[i + window_size]
-            if abs(val_right_2 - val_right_1) > tolerance:
-                current_outliers -= 1 
+            window = sg_values[start : start + window_size]
 
-            # B. HANDLE LEFT EDGE (Entering the window)
-            val_left_1 = sg_values[i]
-            val_left_2 = sg_values[i+1]
-            if abs(val_left_2 - val_left_1) > tolerance:
-                current_outliers += 1 
-            
-            # C. Check Stability
-            if current_outliers <= max_outliers:
-                found_window = sg_values[i : i + window_size]
-                return self._format_result(valid_readings, i, window_size, found_window)
+            if self._is_window_stable(window, tolerance, max_outliers):
+                return self._format_result(valid_readings, start, window_size, window)
 
         return {"overall_stable": False}
+
+    def _is_window_stable(self, window_values, tolerance, max_outliers):
+        """
+        Determines whether a window of gravity readings is stable.
+
+        Stability means: there exists some way of removing at most max_outliers
+        readings (from the high end, the low end, or split between both) such
+        that all remaining readings span a range <= tolerance.
+
+        This correctly rejects a smoothly-declining fermentation — even one
+        where no single consecutive step exceeds the tolerance — because the
+        total spread of the inlier set will still exceed the tolerance band.
+        """
+        sorted_vals = sorted(window_values)
+        n = len(sorted_vals)
+        # Try every split: remove k from the bottom and (max_outliers - k) from the top
+        for k in range(max_outliers + 1):
+            inlier_min = sorted_vals[k]
+            inlier_max = sorted_vals[n - 1 - (max_outliers - k)]
+            if inlier_max - inlier_min <= tolerance:
+                return True
+        return False
 
     def _format_result(self, valid_readings, start_index, window_size, window_values):
         """Helper to format the success response."""
